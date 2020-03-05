@@ -1,5 +1,14 @@
-CMakeCache.txt
+# Devlopment Environment
+.vscode/
+.clang-format
+.clangd/
+*.user
+.vs
+
+# CMake Cache
+out/
 CMakeFiles
+CMakeCache.txt
 CMakeScripts
 Testing
 Makefile
