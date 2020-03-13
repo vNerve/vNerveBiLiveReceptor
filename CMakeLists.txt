@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.14)
 cmake_policy(SET CMP0074 NEW)
+
+project(vNerveBliveReceptor)
 set(CMAKE_CXX_STANDARD 17)
 
-project(vNerveBiliveReceptor)
-
-include(conan.cmake)
+if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
+    message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
+    file(DOWNLOAD "https://github.com/conan-io/cmake-conan/raw/master/conan.cmake" "${CMAKE_BINARY_DIR}/conan.cmake")
+endif()
+include(${CMAKE_BINARY_DIR}/conan.cmake)
 conan_check(REQUIRED)
 
 add_executable(vnerve_bilive_receptor main.cpp config.cpp bili_session.cpp bili_conn.cpp bili_packet.cpp)
