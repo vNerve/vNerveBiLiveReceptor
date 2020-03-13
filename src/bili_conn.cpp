@@ -44,7 +44,7 @@ void vNerve::bilibili::bilibili_connection::start_read()
 void vNerve::bilibili::bilibili_connection::on_join_room_sent(const boost::system::error_code& err, size_t transferred, std::string* buf)
 {
     delete buf; // delete sending buffer.
-    if (!err)
+    if (err)
     {
         // TODO error handling
     }
@@ -54,7 +54,7 @@ void vNerve::bilibili::bilibili_connection::on_join_room_sent(const boost::syste
 
 void vNerve::bilibili::bilibili_connection::on_heartbeat_sent(const boost::system::error_code& err, size_t)
 {
-    if (!err)
+    if (err)
     {
         // TODO error handling
     }
@@ -72,7 +72,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_tick(const boost::syste
 
 void vNerve::bilibili::bilibili_connection::on_receive(const boost::system::error_code& err, size_t transferred)
 {
-    if (!err)
+    if (err)
     {
         // TODO error handling
     }

@@ -45,7 +45,7 @@ void vNerve::bilibili::bilibili_session::on_resolved(
     boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
     int room_id)
 {
-    if (!err)
+    if (err)
     {
         // TODO error handling
         return;
@@ -64,7 +64,7 @@ void vNerve::bilibili::bilibili_session::on_connected(
     std::shared_ptr<boost::asio::ip::tcp::socket> socket,
     int room_id)
 {
-    if (!err)
+    if (err)
     {
         // TODO error handling
         return;
