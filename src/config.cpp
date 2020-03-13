@@ -11,7 +11,7 @@ namespace config
 // Default options.
 const int DEFAULT_HEARTBEAT_TIMEOUT_SEC = 40;
 const std::string DEFAULT_CHAT_SERVER = "broadcastlv.chat.bilibili.com";
-const int DEFAULT_CHAT_SERVER_PORT = 2443;
+const int DEFAULT_CHAT_SERVER_PORT = 2243;
 const int DEFAULT_CHAT_SERVER_PROTOCOL_VER = 2;
 
 const int DEFAULT_READ_BUFFER = 128 * 1024;
