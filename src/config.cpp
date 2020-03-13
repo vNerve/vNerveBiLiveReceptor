@@ -15,6 +15,7 @@ const int DEFAULT_CHAT_SERVER_PORT = 2443;
 const int DEFAULT_CHAT_SERVER_PROTOCOL_VER = 2;
 
 const int DEFAULT_READ_BUFFER = 128 * 1024;
+const int DEFAULT_THREADS = 1;
 
 boost::program_options::options_description create_description()
 {
@@ -27,7 +28,8 @@ boost::program_options::options_description create_description()
     auto descNetworking = options_description("Networking parameters");
     descNetworking.add_options()
         ("read-buffer,b", value<size_t>()->default_value(DEFAULT_READ_BUFFER), "Reading buffer size(bytes) of sockets to bilibili server.")
-        ("zlib-buffer", value<size_t>()->default_value(DEFAULT_READ_BUFFER), "Reading buffer size(bytes) for storing unzipped bilibili chat packet.");
+        ("zlib-buffer", value<size_t>()->default_value(DEFAULT_READ_BUFFER), "Reading buffer size(bytes) for storing unzipped bilibili chat packet.")
+        ("threads", value<int>()->default_value(DEFAULT_THREADS), "Thread numbers for communicating with bilibili server.");
 
     auto descBili = options_description("Bilibili Livestream Interface options");
     descBili.add_options()
@@ -48,7 +50,7 @@ std::shared_ptr<boost::program_options::variables_map> parse_options(int argc, c
 {
     using namespace boost::program_options;
     auto desc = create_description();
-    std::shared_ptr<variables_map> result;
+    std::shared_ptr<variables_map> result = std::make_shared<variables_map>();
     store(parse_command_line(argc, argv, desc), *result);
 
     if (result->count("help"))

@@ -3,6 +3,7 @@
 #include <boost/thread.hpp>
 
 #include <zlib.h>
+#include <iostream>
 
 namespace vNerve::bilibili
 {
@@ -29,9 +30,11 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred, 
         if (header->header_length() != sizeof(bilibili_packet_header))
         {
             // TODO error: malformed packet!
+            std::cerr << "Malformed packet!" << std::endl;
         }
         if (length > buffer_size)
         {
+            std::cerr << "Disposing too big packet, size=" << length << std::endl;
             assert(header->length() > transferred);
             // The packet is too big, dispose it.
             // TODO log
@@ -88,6 +91,7 @@ void handle_packet(unsigned char* buf)
     {
     case zlib_compressed:
         {
+        std::cerr << "Compressed message, decompressing" << std::endl;
         auto decompressed = decompress_buffer(buf + sizeof(bilibili_packet_header), payload_size);
         handle_packet(decompressed);
         }
@@ -99,6 +103,7 @@ void handle_packet(unsigned char* buf)
             {
             auto json = std::string_view(reinterpret_cast<const char*>(buf + sizeof(bilibili_packet_header)), payload_size);
             // TODO parse and send
+            std::cerr << "Received json: " << json << std::endl;
             }
             break;
         case heartbeat_resp:
@@ -108,13 +113,16 @@ void handle_packet(unsigned char* buf)
                 // TODO malformed packet
             }
             auto popularity = boost::asio::detail::socket_ops::network_to_host_long(*reinterpret_cast<uint32_t*>(buf + sizeof(bilibili_packet_header)));
+            std::cerr << "Popularity: " << popularity << std::endl;
             break;
             // TODO notification?
             }
         case join_room_resp:
             // TODO notification?
+            std::cerr << "Joined room!" << std::endl;
             break;
         default:
+            std::cerr << "Unknown packet!" << std::endl;
             // TODO unknown packet
             break;
         }

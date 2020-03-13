@@ -12,11 +12,11 @@ _resolver(_context),
 _shared_heartbeat_buffer_str(generate_heartbeat_packet()),
 _shared_heartbeat_buffer(boost::asio::buffer(_shared_heartbeat_buffer_str)),
 _shared_zlib_buffer([](unsigned char* buf) -> void { delete[] buf; }),
-_shared_zlib_buffer_size((*_options)["zlib-buffer"].as<int>())
+_shared_zlib_buffer_size((*_options)["zlib-buffer"].as<size_t>())
 {
     int threads = (*_options)["threads"].as<int>();
     for (int i = 0; i < threads; i++)
-        _pool.create_thread(boost::bind(&boost::asio::io_service::run, &_context));
+        _pool.create_thread(boost::bind(&boost::asio::io_context::run, &_context));
 }
 
 vNerve::bilibili::bilibili_session::~bilibili_session()
