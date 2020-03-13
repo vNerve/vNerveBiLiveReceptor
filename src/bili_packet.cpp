@@ -103,7 +103,7 @@ void handle_packet(unsigned char* buf)
             {
             auto json = std::string_view(reinterpret_cast<const char*>(buf + sizeof(bilibili_packet_header)), payload_size);
             // TODO parse and send
-            std::cerr << "Received json: " << json << std::endl;
+            std::cerr << "Received json." << std::endl;
             }
             break;
         case heartbeat_resp:

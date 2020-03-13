@@ -80,4 +80,5 @@ void vNerve::bilibili::bilibili_connection::on_receive(const boost::system::erro
     auto [new_offset, new_skipping_bytes] = handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size, _skipping_bytes);
     _read_buffer_offset = new_offset;
     _skipping_bytes = new_skipping_bytes;
+    start_read();
 }

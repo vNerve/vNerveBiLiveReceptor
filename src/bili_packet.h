@@ -8,13 +8,13 @@ namespace vNerve::bilibili
     struct bilibili_packet_header
     {
         uint32_t _length;
-        uint16_t _header_length = boost::asio::detail::socket_ops::host_to_network_long(sizeof(bilibili_packet_header));
+        uint16_t _header_length;
         uint16_t _protocol_version;
         uint32_t _op_code;
-        uint32_t _sequence_id = boost::asio::detail::socket_ops::host_to_network_long(1);
+        uint32_t _sequence_id;
 #define PACKET_ACCESSOR(name, type1, type2) \
     inline type1 name() const { return boost::asio::detail::socket_ops::network_to_host_##type2(_ ##name##); } \
-    inline void name(type1 value) { _ ##name## = boost::asio::detail::socket_ops::host_to_network_##type2(_ ##name##); }
+    inline void name(type1 value) { _ ##name## = boost::asio::detail::socket_ops::host_to_network_##type2(value); }
 #define PACKET_ACCESSOR_LONG(name) PACKET_ACCESSOR(name, uint32_t, long)
 #define PACKET_ACCESSOR_SHORT(name) PACKET_ACCESSOR(name, uint16_t, short)
 
@@ -27,6 +27,12 @@ namespace vNerve::bilibili
 #undef PACKET_ACCESSOR_LONG
 #undef PACKET_ACCESSOR_SHORT
 #undef PACKET_ACCESSOR
+
+        bilibili_packet_header()
+        {
+            header_length(sizeof(bilibili_packet_header));
+            sequence_id(1);
+        }
     };
 
     ///
