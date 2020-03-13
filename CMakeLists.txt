@@ -11,7 +11,13 @@ endif()
 include(${CMAKE_BINARY_DIR}/conan.cmake)
 conan_check(REQUIRED)
 
-add_executable(vnerve_bilive_receptor main.cpp config.cpp bili_session.cpp bili_conn.cpp bili_packet.cpp)
+add_executable(vnerve_bilive_receptor
+    src/main.cpp
+    src/config.cpp
+    src/bili_session.cpp
+    src/bili_conn.cpp
+    src/bili_packet.cpp)
+target_include_directories(vnerve_bilive_receptor PUBLIC src)
 
 conan_cmake_run(REQUIRES "boost/1.72.0" "nlohmann_json/3.7.3" "zlib/1.2.11"
                 BASIC_SETUP CMAKE_TARGETS
