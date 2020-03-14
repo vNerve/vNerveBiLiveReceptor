@@ -49,7 +49,7 @@ namespace vNerve::bilibili
     void handle_packet(unsigned char* buf);
 
     std::string generate_heartbeat_packet();
-    std::string generate_join_room_packet(int room_id);
+    std::string generate_join_room_packet(int room_id, int proto_ver);
 
     enum bilibili_packet_op_code : uint32_t
     {

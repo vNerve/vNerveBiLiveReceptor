@@ -4,6 +4,7 @@
 
 #include <zlib.h>
 #include <iostream>
+#include <cstdio> // for std::sprintf
 
 namespace vNerve::bilibili
 {
@@ -93,6 +94,10 @@ void handle_packet(unsigned char* buf)
         {
         std::cerr << "Compressed message, decompressing" << std::endl;
         auto decompressed = decompress_buffer(buf + sizeof(bilibili_packet_header), payload_size);
+        if (!decompressed)
+        {
+            // TODO malformed zlib data
+        }
         handle_packet(decompressed);
         }
         break;
@@ -138,13 +143,15 @@ std::string generate_heartbeat_packet()
     return std::string(reinterpret_cast<char*>(&header), sizeof(bilibili_packet_header));
 }
 
-const char* join_room_json_before = "{\"clientver\": \"1.6.3\",\"platform\": \"web\",\"protover\": 2,\"roomid\": ";
-const char* join_room_json_after = ",\"uid\": 0,\"type\": 2}";
-std::string generate_join_room_packet(int room_id)
+const char* join_room_json_fmt = "{\"clientver\": \"1.6.3\",\"platform\": \"web\",\"protover\": %d,\"roomid\": %d,\"uid\": 0,\"type\": 2}";
+const size_t join_room_json_max_length = 128;
+std::string generate_join_room_packet(int room_id, int proto_ver)
 {
-    auto payload = join_room_json_before + std::to_string(room_id) + join_room_json_after;
+    char payload[join_room_json_max_length];
+    sprintf_s(payload, join_room_json_fmt, proto_ver, room_id);
+    size_t payload_size = strnlen(payload, join_room_json_max_length);
     auto header = bilibili_packet_header();
-    header.length(header.header_length() + payload.size());
+    header.length(header.header_length() + payload_size);
     header.protocol_version(json_protocol);
     header.op_code(join_room);
     return std::string(reinterpret_cast<char*>(&header), sizeof(bilibili_packet_header))

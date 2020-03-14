@@ -16,7 +16,7 @@ _read_buffer_size(session->get_options()["read-buffer"].as<size_t>())
     _read_buffer_ptr = std::unique_ptr<unsigned char[]>(new unsigned char[_read_buffer_size]);
     start_read();
 
-    auto str = new std::string(generate_join_room_packet(room_id));
+    auto str = new std::string(generate_join_room_packet(room_id, session->get_options()["protocol-ver"].as<int>()));
     auto buffer = boost::asio::buffer(*str);
     socket->async_send(buffer,
         boost::bind(&bilibili_connection::on_join_room_sent, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred, str));
