@@ -24,7 +24,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf, const size_t transfe
 
     while (remaining > 0)
     {
-        spdlog::trace("[bili_buffer] [{:p}] Decoding message at buf+{}, remaining={}", buf, begin, remaining);
+        spdlog::trace("[bili_buffer] [{:p}] Decoding message, remaining={}", buf, remaining);
         assert(remaining <= buffer_size && remaining <= transferred);
         if (remaining < sizeof(bilibili_packet_header))
         {
@@ -60,6 +60,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf, const size_t transfe
 
         handle_packet(buf);
         remaining -= length;
+        buf += length;
     }
 
     return std::pair(0, 0); // read from starting, and skip no bytes.
@@ -73,13 +74,13 @@ unsigned char* get_zlib_buffer()
     return zlib_buffer.get();
 }
 
-std::pair<unsigned char*, int> decompress_buffer(unsigned char* buf, size_t size)
+std::tuple<unsigned char*, int, unsigned long> decompress_buffer(unsigned char* buf, size_t size)
 {
     auto zlib_buf = get_zlib_buffer();
     unsigned long out_size = zlib_buffer_size;
     auto result = uncompress(zlib_buf, &out_size, buf, size);
-    spdlog::trace("[zlib] [{:p}] Packet decompressed to {:p}. Code={}", buf, zlib_buf, result);
-    return std::pair(result == Z_OK ? zlib_buf : nullptr, result);
+    spdlog::trace("[zlib] [{:p}] Packet decompressed to {:p}. code={}, size={}", buf, zlib_buf, result, out_size);
+    return { result == Z_OK ? zlib_buf : nullptr, result, out_size };
 }
 
 void handle_packet(unsigned char* buf)
@@ -99,7 +100,7 @@ void handle_packet(unsigned char* buf)
     case zlib_compressed:
         {
         spdlog::trace("[packet] [{:p}] Decompressing zlib-zipped packet.", buf);
-        auto [decompressed, err_code] = decompress_buffer(buf + sizeof(bilibili_packet_header), payload_size);
+        auto [decompressed, err_code, out_size] = decompress_buffer(buf + sizeof(bilibili_packet_header), payload_size);
         if (!decompressed)
         {
             switch (err_code)
@@ -115,7 +116,8 @@ void handle_packet(unsigned char* buf)
             }
             return;
         }
-        handle_packet(decompressed);
+        handle_buffer(decompressed, out_size, out_size, 0);
+        //handle_packet(decompressed);
         }
         break;
     default:
