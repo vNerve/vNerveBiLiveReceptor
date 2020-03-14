@@ -4,9 +4,7 @@
 
 #include <iostream>
 
-namespace vNerve::bilibili
-{
-namespace config
+namespace vNerve::bilibili::config
 {
 // Default options.
 const int DEFAULT_HEARTBEAT_TIMEOUT_SEC = 40;
@@ -64,10 +62,6 @@ std::shared_ptr<boost::program_options::variables_map> parse_options(int argc, c
         std::cerr << VERSION << std::endl;
         return std::shared_ptr<variables_map>();
     }
-
-    // TODO read config from file.
-
     return result;
-}
 }
 }

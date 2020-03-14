@@ -5,6 +5,33 @@
 
 namespace vNerve::bilibili
 {
+    class malformed_packet : public std::exception
+    {
+    public:
+        malformed_packet() = default;
+        explicit malformed_packet(char const* _Message) : exception(_Message) {}
+        malformed_packet(char const* _Message, int i) : exception(_Message, i) {}
+        explicit malformed_packet(exception const& _Other) : exception(_Other){}
+        malformed_packet(const malformed_packet& other) : std::exception(other) {}
+        malformed_packet(malformed_packet&& other) noexcept : std::exception(std::move(other)) {}
+
+        malformed_packet& operator=(const malformed_packet& other)
+        {
+            if (this == &other)
+                return *this;
+            std::exception::operator =(other);
+            return *this;
+        }
+
+        malformed_packet& operator=(malformed_packet&& other) noexcept
+        {
+            if (this == &other)
+                return *this;
+            std::exception::operator =(std::move(other));
+            return *this;
+        }
+    };
+
     struct bilibili_packet_header
     {
         uint32_t _length;

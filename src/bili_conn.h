@@ -27,7 +27,7 @@ private:
     void start_read();
 
     void on_join_room_sent(const boost::system::error_code&, size_t, std::string*);
-    void on_heartbeat_sent(const boost::system::error_code&, size_t);
+    void on_heartbeat_sent(const boost::system::error_code&, size_t) const;
     void on_heartbeat_tick(const boost::system::error_code&);
     void on_receive(const boost::system::error_code&, size_t);
 public:

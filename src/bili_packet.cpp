@@ -3,26 +3,33 @@
 #include <boost/thread.hpp>
 
 #include <zlib.h>
-#include <iostream>
 #include <cstdio> // for std::sprintf
+#include <spdlog/spdlog.h>
 
 namespace vNerve::bilibili
 {
 const size_t zlib_buffer_size = 256 * 1024;
 
-std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred, size_t buffer_size, size_t skipping_size)
+std::pair<size_t, size_t> handle_buffer(unsigned char* buf, const size_t transferred, const size_t buffer_size, const size_t skipping_size)
 {
+    spdlog::trace("[bili_buffer] [{:p}] Handling buffer: transferred={}, buffer_size={}, skipping_size={}.", buf, transferred, buffer_size, skipping_size);
     if (skipping_size > transferred)
-        return std::pair<size_t, size_t>(0, skipping_size - transferred); // continue disposing
+    {
+        auto next_skipping_size = skipping_size - transferred;
+        spdlog::trace("[bili_buffer] [{:p}] Continue skipping message... Next skipping size=", buf, next_skipping_size);
+        return std::pair<size_t, size_t>(0, next_skipping_size); // continue disposing
+    }
     auto remaining = transferred - skipping_size;
     auto begin = buf + skipping_size;
 
     while (remaining > 0)
     {
+        spdlog::trace("[bili_buffer] [{:p}] Decoding message at buf+{}, remaining={}", buf, begin, remaining);
         assert(remaining <= buffer_size && remaining <= transferred);
         if (remaining < sizeof(bilibili_packet_header))
         {
             // the remaining bytes can't even form a header, so move it to the head and wait for more data.
+            spdlog::trace("[bili_buffer] [{:p}] Remaining bytes can't form a header. Request for more data be written to buf+{}.", buf, remaining);
             std::memcpy(buf, begin, remaining);
             return std::pair<size_t, size_t>(remaining, 0);
         }
@@ -30,15 +37,14 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred, 
         auto length = header->length();
         if (header->header_length() != sizeof(bilibili_packet_header))
         {
-            // TODO error: malformed packet!
-            std::cerr << "Malformed packet!" << std::endl;
+            spdlog::warn("[bili_buffer] [{:p}] Malformed packet: Bad header length(!=16): {}", buf, header->header_length());
+            throw malformed_packet();
         }
         if (length > buffer_size)
         {
-            std::cerr << "Disposing too big packet, size=" << length << std::endl;
+            spdlog::info("[bili_buffer] [{:p}] Packet too big: {} > max size({}). Disposing and skipping next {} bytes.", buf, length, buffer_size, header->length() - remaining);
             assert(header->length() > transferred);
             // The packet is too big, dispose it.
-            // TODO log
             return std::pair<size_t, size_t>(0, header->length() - remaining); // skip the remaining bytes.
         }
 
@@ -46,6 +52,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred, 
         {
             // need more data.
             std::memcpy(buf, begin, remaining);
+            spdlog::trace("[bili_buffer] [{:p}] Packet not complete. Request for more data be written to buf+{}.", buf, remaining);
             return std::pair<size_t, size_t>(remaining, 0);
         }
 
@@ -66,17 +73,13 @@ unsigned char* get_zlib_buffer()
     return zlib_buffer.get();
 }
 
-unsigned char* decompress_buffer(unsigned char* buf, size_t size)
+std::pair<unsigned char*, int> decompress_buffer(unsigned char* buf, size_t size)
 {
     auto zlib_buf = get_zlib_buffer();
     unsigned long out_size = zlib_buffer_size;
     auto result = uncompress(zlib_buf, &out_size, buf, size);
-    switch (result)
-    {
-    case Z_OK: return zlib_buf;
-    // TODO more explanation?
-    }
-    return nullptr;
+    spdlog::trace("[zlib] [{:p}] Packet decompressed to {:p}. Code={}", buf, zlib_buf, result);
+    return std::pair(result == Z_OK ? zlib_buf : nullptr, result);
 }
 
 void handle_packet(unsigned char* buf)
@@ -84,19 +87,33 @@ void handle_packet(unsigned char* buf)
     auto header = reinterpret_cast<bilibili_packet_header*>(buf);
     if (header->header_length() != sizeof(bilibili_packet_header))
     {
-        // TODO error: malformed packet!
+        spdlog::warn("[packet] [{:p}] Malformed packet: Bad header length(!=16): {}", buf, header->header_length());
+        throw malformed_packet();
     }
 
     auto payload_size = header->length() - sizeof(bilibili_packet_header);
+    spdlog::trace("[packet] [{:p}] Packet header: len={}, proto_ver={}, op_code={}, seq_id={}", buf, header->length(), header->protocol_version(), header->op_code(), header->sequence_id());
+
     switch (header->protocol_version())
     {
     case zlib_compressed:
         {
-        std::cerr << "Compressed message, decompressing" << std::endl;
-        auto decompressed = decompress_buffer(buf + sizeof(bilibili_packet_header), payload_size);
+        spdlog::trace("[packet] [{:p}] Decompressing zlib-zipped packet.", buf);
+        auto [decompressed, err_code] = decompress_buffer(buf + sizeof(bilibili_packet_header), payload_size);
         if (!decompressed)
         {
-            // TODO malformed zlib data
+            switch (err_code)
+            {
+            case Z_BUF_ERROR:
+                spdlog::warn("[packet] [{:p}] Failed decompressing zlib-zipped packet! Packet too big.", buf);
+                break;
+            case Z_DATA_ERROR:
+                spdlog::warn("[packet] [{:p}] Failed decompressing zlib-zipped packet! Malformed data.", buf);
+                break;
+            default:
+                spdlog::warn("[packet] [{:p}] Failed decompressing zlib-zipped packet! errno={}. Please refer to zlib documentation.", buf, err_code);
+            }
+            return;
         }
         handle_packet(decompressed);
         }
@@ -108,27 +125,27 @@ void handle_packet(unsigned char* buf)
             {
             auto json = std::string_view(reinterpret_cast<const char*>(buf + sizeof(bilibili_packet_header)), payload_size);
             // TODO parse and send
-            std::cerr << "Received json." << std::endl;
+            spdlog::trace("[packet] [{:p}] Received JSON data. len=", buf, payload_size);
             }
             break;
         case heartbeat_resp:
             {
             if (payload_size != sizeof(uint32_t))
             {
-                // TODO malformed packet
+                spdlog::warn("[packet] [{:p}] Malformed heartbeat response: Bad payload size(!=4): {}", buf, payload_size);
+                return;
             }
             auto popularity = boost::asio::detail::socket_ops::network_to_host_long(*reinterpret_cast<uint32_t*>(buf + sizeof(bilibili_packet_header)));
-            std::cerr << "Popularity: " << popularity << std::endl;
+            spdlog::trace("[packet] [{:p}] Heartbeat response: Popularity={}", buf, popularity);
             break;
-            // TODO notification?
+            // TODO send
             }
         case join_room_resp:
             // TODO notification?
-            std::cerr << "Joined room!" << std::endl;
+            spdlog::trace("[packet] [{:p}] Successfully joined room.", buf);
             break;
         default:
-            std::cerr << "Unknown packet!" << std::endl;
-            // TODO unknown packet
+            spdlog::warn("[packet] [{:p}] Unknown packet type! op_code={}", buf, header->op_code());
             break;
         }
     }

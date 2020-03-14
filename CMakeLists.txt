@@ -19,11 +19,11 @@ add_executable(vnerve_bilive_receptor
     src/bili_packet.cpp)
 target_include_directories(vnerve_bilive_receptor PUBLIC src)
 
-conan_cmake_run(REQUIRES "boost/1.72.0" "nlohmann_json/3.7.3" "zlib/1.2.11"
+conan_cmake_run(REQUIRES "boost/1.72.0" "nlohmann_json/3.7.3" "zlib/1.2.11" "spdlog/1.5.0"
                 BASIC_SETUP CMAKE_TARGETS
                 BUILD missing)
 
 if (WIN32)
     target_compile_definitions(vnerve_bilive_receptor PUBLIC "-D_WIN32_WINNT=0x0601")
 endif()
-target_link_libraries(vnerve_bilive_receptor CONAN_PKG::nlohmann_json CONAN_PKG::boost)
+target_link_libraries(vnerve_bilive_receptor CONAN_PKG::nlohmann_json CONAN_PKG::boost CONAN_PKG::spdlog)
