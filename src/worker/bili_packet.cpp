@@ -56,7 +56,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf, const size_t transfe
             return std::pair<size_t, size_t>(remaining, 0);
         }
 
-        // 到此处我们拥有一个完整的数据包：[begin, begin + length)
+        // 鍒版澶勬垜浠嫢鏈変竴涓畬鏁寸殑鏁版嵁鍖咃細[begin, begin + length)
 
         handle_packet(buf);
         remaining -= length;

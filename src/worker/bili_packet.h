@@ -63,14 +63,14 @@ namespace vNerve::bilibili
     };
 
     ///
-    /// ���ڴ���һ�ζ�ȡ��õĻ�������
-    /// һ�λ��������ܲ����������������ݰ������������Դ������������
-    /// ���������� *buf* ���ʼΪһ�����������ݰ�ͷ����
-    /// @param buf *����*������
-    /// @param transferred ���ζ�ȡ�����ֽ���
-    /// @param buffer_size �����������Ĵ�С
-    /// @param skipping_size �ϴε��û�õķ���ֵ�ĵڶ����ʶӦ�������Ĵ�С
-    /// @return �´ζ�ȡ���Ӧ�ô�ŵ�ƫ�����Լ���Ҫ������һ�ε������һ��������ƫ�����������������в����������ݰ������������Ὣ�����ݰ���һ���ָ��Ƶ� `buf` ��ͷ���򷵻صľ������ݰ�Ƭ�ε�β��λ�� + 1.
+    /// 用于处理一次读取获得的缓冲区。
+    /// 一次缓冲区可能不完整或包含多个数据包。本函数可以处理此种情况。
+    /// 本函数断言 *buf* 的最开始为一个完整的数据包头部。
+    /// @param buf *整个*缓冲区
+    /// @param transferred 本次读取到的字节数
+    /// @param buffer_size 整个缓冲区的大小
+    /// @param skipping_size 上次调用获得的返回值的第二项，标识应该跳过的大小
+    /// @return 下次读取结果应该存放的偏移量以及需要传入下一次调用最后一个参数的偏移量。如果本结果含有不完整的数据包，本函数将会将该数据包的一部分复制到 `buf` 开头，则返回的就是数据包片段的尾部位置 + 1.
     std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred, size_t buffer_size, size_t skipping_size);
 
     void handle_packet(unsigned char* buf);
