@@ -9,6 +9,7 @@ conan_check(REQUIRED)
 
 add_executable(vnerve_bilive_receptor
     src_worker/main.cpp
+    src_shared/config.cpp
     src_worker/config.cpp
     src_worker/bili_session.cpp
     src_worker/bili_conn.cpp
@@ -17,6 +18,7 @@ target_include_directories(vnerve_bilive_receptor PUBLIC src_worker src_shared)
 
 add_executable(vnerve_bilive_receptor_supervisor
     src_supervisor/main.cpp
+    src_shared/config.cpp
     src_supervisor/config.cpp
     src_supervisor/grpc_updater.cpp)
 target_include_directories(vnerve_bilive_receptor_supervisor PUBLIC src_supervisor src_shared)
