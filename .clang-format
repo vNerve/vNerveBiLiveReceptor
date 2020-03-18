@@ -1,0 +1,41 @@
+---
+Language:        Cpp
+BasedOnStyle:  Google
+IndentWidth:     4
+PointerAlignment: Left
+AccessModifierOffset: -4
+BreakBeforeBraces: Allman
+
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^"*'
+    Priority:        1
+  - Regex:           '^(<|"(boost)/)'
+    Priority:        2
+  - Regex:           '<spdlog\/spdlog\.h>'
+    Priority:        3
+  - Regex:           '^<.*'
+    Priority:        4
+  - Regex:           '.*'
+    Priority:        5
+ReflowComments:  false
+
+IndentCaseLabels: false
+NamespaceIndentation: None
+
+BinPackArguments: true
+BreakStringLiterals: false
+
+AlignTrailingComments: true
+AlignOperands: true
+AlignAfterOpenBracket: true
+
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: None
+AllowShortLoopsOnASingleLine: false
+...
+
