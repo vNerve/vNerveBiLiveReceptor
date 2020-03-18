@@ -18,12 +18,15 @@ set(WORKER_SOURCE_FILES
     src/worker/bili_conn.cpp
     src/worker/bili_packet.cpp
 
+    proto/cpp/vNerve/bilibili/live/user_message.pb.cc
+    proto/cpp/vNerve/bilibili/live/room_message.pb.cc
     proto/cpp/vNerve/bilibili/live/message.pb.cc)
 
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
     src/worker
+    src/shared
     proto/cpp)
 
 # TODO: Add supervisor target.
@@ -39,6 +42,7 @@ conan_cmake_run(REQUIRES
 
 if (WIN32)
     target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
 endif()
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::boost
