@@ -1,6 +1,5 @@
 # Devlopment Environment
 .vscode/
-.clang-format
 .clangd/
 *.user
 .vs

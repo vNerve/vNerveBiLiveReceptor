@@ -1,35 +1,52 @@
 cmake_minimum_required(VERSION 3.14)
 cmake_policy(SET CMP0074 NEW)
 
-project(vNerveBliveReceptor)
+project(vNerveBiLiveReceptor)
 set(CMAKE_CXX_STANDARD 17)
 
-include(${CMAKE_BINARY_DIR}/conan.cmake)
+include(conan.cmake)
 conan_check(REQUIRED)
 
-add_executable(vnerve_bilive_receptor
-    src_worker/main.cpp
-    src_shared/config.cpp
-    src_worker/config.cpp
-    src_worker/bili_session.cpp
-    src_worker/bili_conn.cpp
-    src_worker/bili_packet.cpp)
-target_include_directories(vnerve_bilive_receptor PUBLIC src_worker src_shared)
+set(WORKER_EXECUTABLE_NAME
+    v_nerve_bilibili_receptor)
+set(WORKER_SOURCE_FILES
+    src/shared/config.cpp
 
-add_executable(vnerve_bilive_receptor_supervisor
-    src_supervisor/main.cpp
-    src_shared/config.cpp
-    src_supervisor/config.cpp
-    src_supervisor/grpc_updater.cpp)
-target_include_directories(vnerve_bilive_receptor_supervisor PUBLIC src_supervisor src_shared)
+    src/worker/main.cpp
+    src/worker/config.cpp
+    src/worker/bili_session.cpp
+    src/worker/bili_conn.cpp
+    src/worker/bili_packet.cpp
 
-conan_cmake_run(REQUIRES "boost/1.72.0" "zlib/1.2.11" "spdlog/1.5.0"
+    proto/cpp/vNerve/bilibili/live/user_message.pb.cc
+    proto/cpp/vNerve/bilibili/live/room_message.pb.cc
+    proto/cpp/vNerve/bilibili/live/message.pb.cc)
+
+add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
+target_include_directories(
+    ${WORKER_EXECUTABLE_NAME} PUBLIC
+    src/worker
+    src/shared
+    proto/cpp)
+
+# TODO: Add supervisor target.
+
+conan_cmake_run(REQUIRES
+                    "boost/1.72.0"
+                    "zlib/1.2.11"
+                    "spdlog/1.5.0"
+                    "rapidjson/1.1.0"
+                    "protobuf/3.11.4@charliejiang/stable"
                 BASIC_SETUP CMAKE_TARGETS
                 BUILD missing)
 
 if (WIN32)
-    target_compile_definitions(vnerve_bilive_receptor            PUBLIC "-D_WIN32_WINNT=0x0601")
-    target_compile_definitions(vnerve_bilive_receptor_supervisor PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
 endif()
-target_link_libraries(vnerve_bilive_receptor            CONAN_PKG::boost CONAN_PKG::zlib CONAN_PKG::spdlog)
-target_link_libraries(vnerve_bilive_receptor_supervisor CONAN_PKG::boost CONAN_PKG::zlib CONAN_PKG::spdlog)
+target_link_libraries(${WORKER_EXECUTABLE_NAME}
+                        CONAN_PKG::boost
+                        CONAN_PKG::zlib
+                        CONAN_PKG::spdlog
+                        CONAN_PKG::rapidjson
+                        CONAN_PKG::protobuf)
