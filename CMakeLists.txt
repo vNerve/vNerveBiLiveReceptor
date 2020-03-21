@@ -36,8 +36,11 @@ set(SUPERVISOR_SOURCE_FILES
     src/shared/config.cpp
 
     src/supervisor/main.cpp
-    src/worker/config.cpp
-    src/supervisor/grpc_updater.cpp)
+    src/supervisor/config.cpp
+    src/supervisor/grpc_updater.cpp
+
+    proto/cpp/vNerve/bilibili/bilibili_info.pb.cc
+    proto/cpp/vNerve/bilibili/bilibili_info.grpc.pb.cc)
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
@@ -56,6 +59,7 @@ conan_cmake_run(REQUIRES
 
 if (WIN32)
     target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
     target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
 endif()
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
