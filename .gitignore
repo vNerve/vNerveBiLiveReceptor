@@ -3,6 +3,7 @@
 .clangd/
 *.user
 .vs
+CMakeSettings.json
 
 # CMake Cache
 out/
