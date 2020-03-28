@@ -7,7 +7,7 @@ AccessModifierOffset: -4
 BreakBeforeBraces: Allman
 
 SortIncludes: true
-IncludeBlocks: Regroup
+IncludeBlocks: Preserve
 IncludeCategories:
   - Regex:           '^"*'
     Priority:        1
@@ -19,17 +19,12 @@ IncludeCategories:
     Priority:        4
   - Regex:           '.*'
     Priority:        5
+
+ColumnLimit:     0
 ReflowComments:  false
-
-IndentCaseLabels: false
-NamespaceIndentation: None
-
 BinPackArguments: true
 BreakStringLiterals: false
-
-AlignTrailingComments: true
-AlignOperands: true
-AlignAfterOpenBracket: true
+BreakBeforeBinaryOperators: NonAssignment
 
 AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
@@ -37,5 +32,12 @@ AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLambdasOnASingleLine: None
 AllowShortLoopsOnASingleLine: false
+
+IndentCaseLabels: false
+NamespaceIndentation: None
+
+AlignTrailingComments: true
+AlignOperands: true
+AlignAfterOpenBracket: true
 ...
 
