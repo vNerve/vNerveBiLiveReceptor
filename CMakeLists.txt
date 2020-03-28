@@ -44,7 +44,7 @@ set(SUPERVISOR_SOURCE_FILES
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
-    src/suprtvisor
+    src/supervisor
     src/shared
     proto/cpp)
 
