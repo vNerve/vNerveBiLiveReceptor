@@ -1,8 +1,8 @@
 #pragma once
 
-#include <boost/asio.hpp>
-
 #include <memory>
+
+#include <boost/asio.hpp>
 
 namespace vNerve::bilibili
 {
@@ -26,14 +26,16 @@ private:
     void reschedule_timer();
     void start_read();
 
-    void on_join_room_sent(const boost::system::error_code&, size_t, std::string*);
+    void on_join_room_sent(const boost::system::error_code&, size_t,
+                           std::string*);
     void on_heartbeat_sent(const boost::system::error_code&, size_t) const;
     void on_heartbeat_tick(const boost::system::error_code&);
     void on_receive(const boost::system::error_code&, size_t);
-public:
-    bilibili_connection(std::shared_ptr<boost::asio::ip::tcp::socket> socket, std::shared_ptr<bilibili_session> session, int room_id);
-    ~bilibili_connection();
 
+public:
+    bilibili_connection(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
+                        std::shared_ptr<bilibili_session> session, int room_id);
+    ~bilibili_connection();
 
     bilibili_connection(const bilibili_connection& other) = delete;
     bilibili_connection& operator=(const bilibili_connection& other) = delete;
@@ -66,4 +68,4 @@ public:
         return *this;
     }
 };
-}
+}  // namespace vNerve::bilibili

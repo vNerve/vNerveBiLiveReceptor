@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include "version.h"
+
 #include <iostream>
 
 namespace vNerve::bilibili::config

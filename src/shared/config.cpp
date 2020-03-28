@@ -6,7 +6,8 @@
 
 namespace vNerve::bilibili::config
 {
-std::shared_ptr<boost::program_options::variables_map> parse_options(int argc, char** argv)
+std::shared_ptr<boost::program_options::variables_map> parse_options(
+    int argc, char** argv)
 {
     using namespace boost::program_options;
     auto desc = create_description();
@@ -26,4 +27,4 @@ std::shared_ptr<boost::program_options::variables_map> parse_options(int argc, c
     }
     return result;
 }
-}
+}  // namespace vNerve::bilibili::config
