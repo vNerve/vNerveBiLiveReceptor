@@ -4,6 +4,7 @@ cmake_policy(SET CMP0074 NEW)
 project(vNerveBiLiveReceptor)
 set(CMAKE_CXX_STANDARD 17)
 
+include(grpc.cmake)
 include(conan.cmake)
 conan_check(REQUIRED)
 
@@ -29,7 +30,23 @@ target_include_directories(
     src/shared
     proto/cpp)
 
-# TODO: Add supervisor target.
+set(SUPERVISOR_EXECUTABLE_NAME
+    v_nerve_bilibili_receptor_supervisor)
+set(SUPERVISOR_SOURCE_FILES
+    src/shared/config.cpp
+
+    src/supervisor/main.cpp
+    src/supervisor/config.cpp
+    src/supervisor/grpc_updater.cpp
+
+    proto/cpp/vNerve/bilibili/bilibili_info.pb.cc
+    proto/cpp/vNerve/bilibili/bilibili_info.grpc.pb.cc)
+add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
+target_include_directories(
+    ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
+    src/suprtvisor
+    src/shared
+    proto/cpp)
 
 conan_cmake_run(REQUIRES
                     "boost/1.72.0"
@@ -42,6 +59,7 @@ conan_cmake_run(REQUIRES
 
 if (WIN32)
     target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
     target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
 endif()
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
@@ -50,3 +68,8 @@ target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::spdlog
                         CONAN_PKG::rapidjson
                         CONAN_PKG::protobuf)
+target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
+                        CONAN_PKG::boost
+                        CONAN_PKG::spdlog
+                        CONAN_PKG::protobuf
+                        grpc++)
