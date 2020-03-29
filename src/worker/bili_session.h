@@ -2,12 +2,13 @@
 
 #include "bili_conn.h"
 
+#include "config.h"
+
 #include <memory>
 #include <string>
 
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
-#include <boost/program_options.hpp>
 #include <boost/thread.hpp>
 
 namespace vNerve::bilibili
@@ -27,7 +28,7 @@ private:
 
     boost::asio::ip::tcp::resolver _resolver;
 
-    std::shared_ptr<boost::program_options::variables_map> _options;
+    config::config_t _options;
 
     void on_resolved(const boost::system::error_code& err,
                      boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
@@ -44,7 +45,7 @@ private:
     size_t _shared_zlib_buffer_size;
 
 public:
-    bilibili_session(std::shared_ptr<boost::program_options::variables_map>);
+    bilibili_session(config::config_t);
     ~bilibili_session();
 
     void open_connection(int room_id);

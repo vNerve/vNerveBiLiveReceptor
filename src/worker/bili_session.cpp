@@ -6,8 +6,7 @@
 #include <boost/thread.hpp>
 #include <spdlog/spdlog.h>
 
-vNerve::bilibili::bilibili_session::bilibili_session(
-    const std::shared_ptr<boost::program_options::variables_map> options)
+vNerve::bilibili::bilibili_session::bilibili_session(const config::config_t options)
     : _guard(_context.get_executor()),
       _resolver(_context),
       _options(options),
