@@ -1,5 +1,7 @@
 #include "bili_packet.h"
 
+#include "bili_json.h"
+
 #include <cstdio>  // for sprintf()
 
 #include <boost/thread.hpp>
@@ -120,8 +122,8 @@ void handle_packet(unsigned char* buf)
     auto payload_size = header->length() - sizeof(bilibili_packet_header);
     spdlog::trace(
         "[packet] [{:p}] Packet header: len={}, proto_ver={}, op_code={}, seq_id={}",
-        buf, header->length(), header->protocol_version(), header->op_code(),
-        header->sequence_id());
+        buf, header->length(), header->protocol_version(),
+        header->op_code(), header->sequence_id());
 
     switch (header->protocol_version())
     {
@@ -192,8 +194,8 @@ void handle_packet(unsigned char* buf)
             spdlog::trace("[packet] [{:p}] Successfully joined room.", buf);
             break;
         default:
-            spdlog::warn("[packet] [{:p}] Unknown packet type! op_code={}", buf,
-                         header->op_code());
+            spdlog::warn("[packet] [{:p}] Unknown packet type! op_code={}",
+                         buf, header->op_code());
             break;
         }
     }
@@ -222,8 +224,8 @@ std::string generate_join_room_packet(int room_id, int proto_ver)
     header.protocol_version(json_protocol);
     header.op_code(join_room);
     return std::string(reinterpret_cast<char*>(&header),
-                       sizeof(bilibili_packet_header)) +
-           payload;
+                       sizeof(bilibili_packet_header))
+           + payload;
 }
 
 }  // namespace vNerve::bilibili
