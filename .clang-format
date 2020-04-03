@@ -6,20 +6,7 @@ PointerAlignment: Left
 AccessModifierOffset: -4
 BreakBeforeBraces: Allman
 
-SortIncludes: true
-IncludeBlocks: Preserve
-IncludeCategories:
-  - Regex:           '^"*'
-    Priority:        1
-  - Regex:           '^(<|"(boost)/)'
-    Priority:        2
-  - Regex:           '<spdlog\/spdlog\.h>'
-    Priority:        3
-  - Regex:           '^<.*'
-    Priority:        4
-  - Regex:           '.*'
-    Priority:        5
-
+SortIncludes: false
 ColumnLimit:     0
 ReflowComments:  false
 BinPackArguments: true

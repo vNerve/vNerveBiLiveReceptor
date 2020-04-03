@@ -4,8 +4,8 @@
 #include "bili_session.h"
 
 #include <boost/bind.hpp>
-#include <spdlog/fmt/bin_to_hex.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/bin_to_hex.h>
 
 vNerve::bilibili::bilibili_connection::bilibili_connection(
     const std::shared_ptr<boost::asio::ip::tcp::socket> socket,
