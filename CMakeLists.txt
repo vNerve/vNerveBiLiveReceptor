@@ -36,6 +36,7 @@ target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
     src/worker
     src/shared
+    vendor/
     proto/cpp)
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::boost
