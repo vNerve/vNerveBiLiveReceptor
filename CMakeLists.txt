@@ -27,7 +27,7 @@ set(WORKER_SOURCE_FILES
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
-    src/third_party
+    vendor
     src/worker
     src/shared
     proto/cpp)
@@ -39,8 +39,8 @@ set(SUPERVISOR_SOURCE_FILES
 
     src/supervisor/main.cpp
     src/supervisor/config.cpp
-    "src/supervisor/room_list_updater.cpp"
-    "src/supervisor/supervisor_server_session.cpp"
+    src/supervisor/room_list_updater.cpp
+    src/supervisor/supervisor_server_session.cpp
     src/supervisor/worker_scheduler.cpp
     )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
