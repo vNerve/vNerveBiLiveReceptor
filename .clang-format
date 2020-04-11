@@ -6,30 +6,12 @@ PointerAlignment: Left
 AccessModifierOffset: -4
 BreakBeforeBraces: Allman
 
-SortIncludes: true
-IncludeBlocks: Regroup
-IncludeCategories:
-  - Regex:           '^"*'
-    Priority:        1
-  - Regex:           '^(<|"(boost)/)'
-    Priority:        2
-  - Regex:           '<spdlog\/spdlog\.h>'
-    Priority:        3
-  - Regex:           '^<.*'
-    Priority:        4
-  - Regex:           '.*'
-    Priority:        5
+SortIncludes: false
+ColumnLimit:     0
 ReflowComments:  false
-
-IndentCaseLabels: false
-NamespaceIndentation: None
-
 BinPackArguments: true
 BreakStringLiterals: false
-
-AlignTrailingComments: true
-AlignOperands: true
-AlignAfterOpenBracket: true
+BreakBeforeBinaryOperators: NonAssignment
 
 AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
@@ -37,5 +19,12 @@ AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLambdasOnASingleLine: None
 AllowShortLoopsOnASingleLine: false
+
+IndentCaseLabels: false
+NamespaceIndentation: None
+
+AlignTrailingComments: true
+AlignOperands: true
+AlignAfterOpenBracket: true
 ...
 

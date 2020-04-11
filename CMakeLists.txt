@@ -7,6 +7,15 @@ set(CMAKE_CXX_STANDARD 17)
 include(conan.cmake)
 conan_check(REQUIRED)
 
+conan_cmake_run(REQUIRES
+                    "boost/1.72.0"
+                    "zlib/1.2.11"
+                    "spdlog/1.5.0"
+                    "rapidjson/1.1.0"
+                    "protobuf/3.11.4@charliejiang/stable"
+                BASIC_SETUP CMAKE_TARGETS
+                BUILD missing)
+
 set(WORKER_EXECUTABLE_NAME
     v_nerve_bilibili_receptor)
 set(WORKER_SOURCE_FILES
@@ -20,9 +29,9 @@ set(WORKER_SOURCE_FILES
     src/worker/supervisor_connection.cpp
     src/worker/supervisor_session.cpp
 
-    proto/cpp/vNerve/bilibili/live/user_message.pb.cc
+    proto/cpp/vNerve/bilibili/live/message.pb.cc
     proto/cpp/vNerve/bilibili/live/room_message.pb.cc
-    proto/cpp/vNerve/bilibili/live/message.pb.cc)
+    proto/cpp/vNerve/bilibili/live/user_message.pb.cc)
 
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
@@ -30,6 +39,7 @@ target_include_directories(
     vendor
     src/worker
     src/shared
+    vendor/
     proto/cpp)
 
 set(SUPERVISOR_EXECUTABLE_NAME
@@ -79,3 +89,31 @@ target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::protobuf
                         CONAN_PKG::rapidjson
                         CONAN_PKG::cpp-httplib)
+
+if (WIN32)
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
+endif()
+
+
+# set(SUPERVISOR_EXECUTABLE_NAME
+#     v_nerve_bilibili_receptor_supervisor)
+# set(SUPERVISOR_SOURCE_FILES
+#     src/shared/config.cpp
+
+#     src/supervisor/main.cpp
+#     src/supervisor/config.cpp)
+# add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
+# target_include_directories(
+#     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
+#     src/supervisor
+#     src/shared
+#     proto/cpp)
+# target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
+#                         CONAN_PKG::boost
+#                         CONAN_PKG::spdlog)
+
+# if (WIN32)
+#     target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+#     target_compile_options(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "/utf-8")
+# endif()

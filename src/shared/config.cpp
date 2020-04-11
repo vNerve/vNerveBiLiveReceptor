@@ -35,4 +35,4 @@ config_t parse_options(int argc, char** argv)
     }
     return result;
 }
-}
+}  // namespace vNerve::bilibili::config

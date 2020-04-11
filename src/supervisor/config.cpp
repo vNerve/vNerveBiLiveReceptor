@@ -48,4 +48,4 @@ boost::program_options::options_description create_description()
     return desc;
     // clang-format on
 }
-}
+}  // namespace vNerve::bilibili::config
