@@ -98,6 +98,9 @@ void vNerve::bilibili::bilibili_session::on_connected(
     }
 
     spdlog::debug("[session] Connected to room {}. Setting up connection protocol.", room_id);
-    _connections.emplace_back(socket, shared_from_this(), room_id);
+    _connections.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(room_id),
+        std::forward_as_tuple(socket, shared_from_this(), room_id));
     // TODO notification?
 }

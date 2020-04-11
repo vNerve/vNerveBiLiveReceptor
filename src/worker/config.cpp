@@ -12,7 +12,9 @@ const int DEFAULT_READ_BUFFER = 128 * 1024;
 const int DEFAULT_THREADS = 1;
 
 const std::string DEFAULT_SUPERVISOR_HOST = "localhost";
-const int DEFAULT_SUPERVISOR_PORT = 2525;
+const int DEFAULT_SUPERVISOR_PORT = 2434;
+const int DEFAULT_MAX_ROOMS = 500;
+const int DEFAULT_MAX_RETRY_SEC = 60;
 
 boost::program_options::options_description create_description()
 {
@@ -40,8 +42,10 @@ boost::program_options::options_description create_description()
 
     auto descSupervisor = options_description("vNerve bilibili chat supervisor options");
     descSupervisor.add_options()
-        ("supervisor-host, S", value<std::string>()->default_value(DEFAULT_SUPERVISOR_HOST), "vNerve Bilibili chat supervisor host")
-        ("supervisor-port, P", value<int>()->default_value(DEFAULT_SUPERVISOR_PORT), "vNerve Bilibili chat supervisor port")
+        ("supervisor-host,H", value<std::string>()->default_value(DEFAULT_SUPERVISOR_HOST), "vNerve Bilibili chat supervisor port. Default to localhost")
+        ("supervisor-port,P", value<int>()->default_value(DEFAULT_SUPERVISOR_PORT), "vNerve Bilibili chat supervisor host. Default to 2434")
+        ("max-rooms,M", value<int>()->default_value(DEFAULT_MAX_ROOMS), "Max concurrent connecting rooms.")
+        ("retry-interval-sec,R", value<int>()->default_value(DEFAULT_MAX_RETRY_SEC), "Interval between retrying to connect to supervisor. In seconds.")
     ;
 
     auto desc = options_description("vNerve Bilibili Livestream chat crawling worker");

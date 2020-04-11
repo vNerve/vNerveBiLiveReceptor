@@ -2,7 +2,6 @@
 
 #include <boost/asio.hpp>
 #include <boost/thread.hpp>
-#include <boost/enable_shared_from_this.hpp>
 
 #include <string>
 #include <memory>
@@ -17,12 +16,13 @@ namespace vNerve::bilibili
     /// This should be created only once through the whole program.
     class bilibili_session : public std::enable_shared_from_this<bilibili_session>
     {
+        friend class bilibili_connection;
     private:
         boost::asio::io_context _context;
         boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _guard;
         boost::thread_group _pool;
 
-        std::vector<bilibili_connection> _connections;
+        std::unordered_map<int, bilibili_connection> _connections;
 
         boost::asio::ip::tcp::resolver _resolver;
 
@@ -30,6 +30,9 @@ namespace vNerve::bilibili
 
         void on_resolved(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator, int room_id);
         void on_connected(const boost::system::error_code& err, boost::asio::ip::tcp::resolver::iterator endpoint_iterator, std::shared_ptr<boost::asio::ip::tcp::socket>, int);
+
+        void on_room_failed(int room_id);
+        void on_room_data(unsigned char *data, size_t len);
 
         std::string _shared_heartbeat_buffer_str;
         boost::asio::const_buffer _shared_heartbeat_buffer; // binary string :)
