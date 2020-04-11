@@ -1,8 +1,9 @@
-#include "grpc_updater.h"
+#include "room_list_updater.h"
 
 #include "config.h"
 
 #include <memory>
+#include <iostream>
 
 int main(int argc, char** argv)
 {
