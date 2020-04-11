@@ -1,4 +1,4 @@
 [submodule "vNerveTransmitter"]
 	path = proto
-	url = https://github.com/dd-center/vNerveTransmitter
+	url = https://github.com/vNerve/vNerveTransmitter
 	branch = dist
