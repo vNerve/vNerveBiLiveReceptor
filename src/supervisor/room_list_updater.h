@@ -1,15 +1,13 @@
 #pragma once
 
-#include "vNerve/bilibili/bilibili_info.pb.h"
-#include "vNerve/bilibili/bilibili_info.grpc.pb.h"
-
 #include <boost/asio.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <boost/thread.hpp>
 
 #include <vector>
 #include <functional>
-#include <grpc++/grpc++.h>
+
+#include <httplib.h>
 
 namespace vNerve::bilibili::info
 {
@@ -23,15 +21,17 @@ private:
     boost::thread _thread;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
     int _update_interval_min;
+    std::string _server_endpoint;
 
-    std::shared_ptr<grpc::Channel> _channel;
-    std::shared_ptr<Bilibili::Stub> _stub;
+    httplib::Client _http_client;
+    httplib::Headers _http_headers;
 
     std::shared_ptr<boost::program_options::variables_map> _options;
 
     vtuber_info_update_callback _callback;
 
     void reschedule_timer();
+    void refresh();
     void on_timer_tick(const boost::system::error_code& ec);
 public:
     vtuber_info_updater(

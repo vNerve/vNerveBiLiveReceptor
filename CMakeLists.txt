@@ -4,7 +4,6 @@ cmake_policy(SET CMP0074 NEW)
 project(vNerveBiLiveReceptor)
 set(CMAKE_CXX_STANDARD 17)
 
-include(grpc.cmake)
 include(conan.cmake)
 conan_check(REQUIRED)
 
@@ -18,6 +17,8 @@ set(WORKER_SOURCE_FILES
     src/worker/bili_session.cpp
     src/worker/bili_conn.cpp
     src/worker/bili_packet.cpp
+    src/worker/supervisor_connection.cpp
+    src/worker/supervisor_session.cpp
 
     proto/cpp/vNerve/bilibili/live/user_message.pb.cc
     proto/cpp/vNerve/bilibili/live/room_message.pb.cc
@@ -26,6 +27,7 @@ set(WORKER_SOURCE_FILES
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
+    src/third_party
     src/worker
     src/shared
     proto/cpp)
@@ -37,13 +39,14 @@ set(SUPERVISOR_SOURCE_FILES
 
     src/supervisor/main.cpp
     src/supervisor/config.cpp
-    src/supervisor/grpc_updater.cpp
-
-    proto/cpp/vNerve/bilibili/bilibili_info.pb.cc
-    proto/cpp/vNerve/bilibili/bilibili_info.grpc.pb.cc)
+    "src/supervisor/room_list_updater.cpp"
+    "src/supervisor/supervisor_server_session.cpp"
+    src/supervisor/worker_scheduler.cpp
+    )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
+    src/third_party
     src/suprtvisor
     src/shared
     proto/cpp)
@@ -54,6 +57,7 @@ conan_cmake_run(REQUIRES
                     "spdlog/1.5.0"
                     "rapidjson/1.1.0"
                     "protobuf/3.11.4@charliejiang/stable"
+                    "cpp-httplib/0.5.7"
                 BASIC_SETUP CMAKE_TARGETS
                 BUILD missing)
 
@@ -67,9 +71,11 @@ target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::zlib
                         CONAN_PKG::spdlog
                         CONAN_PKG::rapidjson
-                        CONAN_PKG::protobuf)
+                        CONAN_PKG::protobuf
+                        )
 target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::boost
                         CONAN_PKG::spdlog
                         CONAN_PKG::protobuf
-                        grpc++)
+                        CONAN_PKG::rapidjson
+                        CONAN_PKG::cpp-httplib)
