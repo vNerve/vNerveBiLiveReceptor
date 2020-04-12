@@ -13,6 +13,8 @@ using supervisor_buffer_handler = std::function<void(unsigned char*, size_t)>;
 using supervisor_buffer_deleter = std::function<void(unsigned char*)>;
 using supervisor_buffer_owned = std::pair<boost::asio::mutable_buffer, supervisor_buffer_deleter>;
 
+inline const int MAX_WRITE_BATCH = 10;
+
 class supervisor_connection : std::enable_shared_from_this<supervisor_connection>
 {
 private:
@@ -38,9 +40,9 @@ private:
 
     void start_async_write();
     void connect();
-    void on_written(const boost::system::error_code& ec,
+    void on_written(const ::boost::system::error_code& ec,
                     size_t bytes_transferred,
-                    std::vector<supervisor_buffer_owned>* buffers);
+                    std::array<supervisor_buffer_owned, MAX_WRITE_BATCH> buffers, size_t batch_size);
     void on_resolved(
         const boost::system::error_code& ec,
         const boost::asio::ip::tcp::resolver::iterator endpoint_iterator);

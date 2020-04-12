@@ -1,10 +1,12 @@
 #include "supervisor_connection.h"
 #include <utility>
+#include <boost/move/adl_move_swap.hpp>
 
 namespace vNerve::bilibili::worker_supervisor
 {
+
 supervisor_connection::supervisor_connection(const config::config_t config,
-                                       const supervisor_buffer_handler buffer_handler)
+                                             const supervisor_buffer_handler buffer_handler)
     : _config(config),
       _guard(_context.get_executor()),
       _resolver(_context),
@@ -32,10 +34,15 @@ void supervisor_connection::publish_msg(unsigned char* msg, size_t len,
         deleter(msg); // Dispose data.
         return;
     }
-    _queue.enqueue(std::make_pair(boost::asio::buffer(msg, len), deleter));
+    bool ret = _queue.enqueue(std::make_pair(boost::asio::buffer(msg, len), deleter));
+    if (!ret)
+    {
+        deleter(msg);
+        return;
+    }
     post(_context,
-                      boost::bind(&supervisor_connection::start_async_write,
-                                  shared_from_this()));
+         boost::bind(&supervisor_connection::start_async_write,
+                     shared_from_this()));
 }
 
 void supervisor_connection::start_async_write()
@@ -44,25 +51,24 @@ void supervisor_connection::start_async_write()
         return;
     _pending_write = true;
 
-    std::vector<boost::asio::mutable_buffer> buffers;
-    auto buffers_with_deleter = new std::vector<supervisor_buffer_owned>();
-    supervisor_buffer_owned buf;
-    while (_queue.try_dequeue(buf))
-        buffers_with_deleter->push_back(buf);
-    if (buffers.empty())
+    std::array<supervisor_buffer_owned, MAX_WRITE_BATCH> bufs;
+    auto bufCount = _queue.try_dequeue_bulk(bufs.data(), MAX_WRITE_BATCH);
+    if (bufCount == 0)
     {
         _pending_write = false;
         return;
     }
-    for (auto& buffer_with_deleter : *buffers_with_deleter)
-        buffers.emplace_back(buffer_with_deleter.first);
+
+    auto bufs2 = std::vector<boost::asio::const_buffer>(bufCount);
+    for (size_t i = 0; i < bufCount; i++)
+        bufs2[i] = bufs[i].first;
 
     async_write(
-        *_socket, buffers,
+        *_socket, bufs2,
         boost::bind(&supervisor_connection::on_written, shared_from_this(),
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::bytes_transferred,
-                    buffers_with_deleter));
+                    bufs, bufCount));
 }
 
 void supervisor_connection::connect()
@@ -82,12 +88,13 @@ void supervisor_connection::connect()
 }
 
 void supervisor_connection::on_written(const boost::system::error_code& ec,
-    size_t bytes_transferred, std::vector<supervisor_buffer_owned>* buffers)
+                                       size_t bytes_transferred, std::array<supervisor_buffer_owned, MAX_WRITE_BATCH> buffers, size_t batch_size)
 {
     // First delete all buffers and the vector itself!!
-    for (auto& buffer : *buffers)
-        buffer.second(reinterpret_cast<unsigned char*>(buffer.first.data()));
-    delete buffers;
+    for (size_t i = 0; i < batch_size;i++)
+        buffers[i].second(reinterpret_cast<unsigned char*>(buffers[i].first.data()));
+
+    _pending_write = false;
 
     if (ec)
     {
@@ -97,11 +104,12 @@ void supervisor_connection::on_written(const boost::system::error_code& ec,
         // TODO retry handling?
     }
     // todo log?
+
+    start_async_write();
 }
 
 void supervisor_connection::on_resolved(const boost::system::error_code& ec,
-    const boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
+                                        const boost::asio::ip::tcp::resolver::iterator endpoint_iterator)
 {
-
 }
 }
