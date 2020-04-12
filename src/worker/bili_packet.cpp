@@ -1,7 +1,5 @@
 #include "bili_packet.h"
 
-#include "bili_json.h"
-
 #include <cstdio>  // for sprintf()
 
 #include <boost/thread.hpp>

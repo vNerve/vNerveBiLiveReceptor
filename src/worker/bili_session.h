@@ -4,6 +4,7 @@
 #include <boost/thread.hpp>
 
 #include "config.h"
+#include "bili_conn.h"
 
 #include <memory>
 #include <string>
