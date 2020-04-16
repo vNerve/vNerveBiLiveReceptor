@@ -1,10 +1,13 @@
 #include "bili_packet.h"
 
-#include <cstdio>  // for sprintf()
+#include "bili_json.h"
+#include "borrowed_buffer.h"
 
 #include <boost/thread.hpp>
 #include <spdlog/spdlog.h>
 #include <zlib.h>
+
+#include <cstdio>  // for sprintf()
 
 namespace vNerve::bilibili
 {
@@ -160,13 +163,10 @@ void handle_packet(unsigned char* buf)
         {
         case json_message:
         {
-            auto json =
-                std::string_view(reinterpret_cast<const char*>(
-                                     buf + sizeof(bilibili_packet_header)),
-                                 payload_size);
-            // TODO parse and send
-            spdlog::trace("[packet] [{:p}] Received JSON data. len=", buf,
-                          payload_size);
+            spdlog::trace("[packet] [{:p}] Received JSON data. len=",
+                          buf, payload_size);
+            borrowed_buffer protobuf = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)));
+            // TODO pack and send
         }
         break;
         case heartbeat_resp:
