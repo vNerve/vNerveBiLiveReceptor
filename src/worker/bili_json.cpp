@@ -58,20 +58,133 @@ robin_hood::unordered_map<string, function<void(const Document&, RoomMessage*, A
 CMD(DANMU_MSG)
 {
     // TODO: 更好的变量命名
+    // TODO: 高强度检查
+    // TODO: 错误处理
+    // 以下变量类型均为 const rapidjson::GenericArray::Iterator&
     auto const& _info = document["info"].GetArray().Begin();
     auto const& _basic_info = _info->GetArray().Begin();
     auto const& _user_info = (_info + 2)->GetArray().Begin();
     // 需要测试message使用完毕清空时embedded message是否会清空
+    // 以下变量类型均为 T*
     auto user_message = Arena::CreateMessage<live::UserMessage>(arena);
     auto user_info = Arena::CreateMessage<live::UserInfo>(arena);
     auto danmaku = Arena::CreateMessage<live::DanmakuMessage>(arena);
-    // 设置字符串的函数使用reinterpret_cast转换char指针 并不通过arena分配内存
-    // 因此需要注意document是否会在message使用完之前释放
-    danmaku->set_message((_info + 1)->GetString(), (_info + 1)->GetStringLength());
-    // 抽奖弹幕是哪个字段？
-    danmaku->set_lottery_type(live::LotteryDanmakuType::);
-    danmaku->set_from_guard();
+
+    // 尽管所有UserMessage都需要设置UserInfo
+    // 但是不同cmd的数据格式也有所不同
+    // 因此设置UserInfo和设置RMQ的topic都只能强耦合在每个处理函数里
+
+    if (_user_info->IsUint64())  // uid
+    {
+        user_info->set_uid(_user_info->GetUint64());
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+    if ((_user_info + 1)->IsString())  // uname
+    {
+        user_info->set_name((_user_info + 1)->GetString(), (_user_info + 1)->GetStringLength());
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+    if ((_user_info + 2)->IsBool())  // admin
+    {
+        user_info->set_admin((_user_info + 2)->GetBool());
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+    if ((_user_info + 3)->IsBool() && (_user_info + 4)->IsBool())  // live vip
+    {
+        if ((_user_info + 3)->GetBool() == (_user_info + 4)->GetBool())
+        {
+            if ((_user_info + 3)->GetBool())
+            {
+                // TODO: 错误处理
+            }
+            else
+            {
+                user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
+            }
+        }
+        else if ((_user_info + 3)->GetBool())
+        {
+            user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
+        }
+        else
+        {
+            user_info->set_vip_level(live::LiveVipLevel::YEARLY);
+        }
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+    // 写到这
+
+    if ((_info + 1)->IsString())  // message
+    {
+        // 设置字符串的函数会分配额外的string 并且不通过arena分配内存
+        // 需要考虑tcmalloc等
+        danmaku->set_message((_info + 1)->GetString(), (_info + 1)->GetStringLength());
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+    if ((_basic_info + 9)->IsUint())  // danmaku type
+    {
+        switch ((_basic_info + 9)->GetUint())
+        {
+        case 0:  // 普通弹幕
+            danmaku->set_lottery_type(live::LotteryDanmakuType::NO_LOTTERY);
+            break;
+        case 1:  // 节奏风暴
+            danmaku->set_lottery_type(live::LotteryDanmakuType::STORM);
+            break;
+        case 2:  // 抽奖弹幕
+            danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
+            break;
+        default:
+            // TODO: 错误处理
+            break;
+        }
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+    if ((_info + 7)->IsUint())  // guard level
+    {
+        switch ((_info + 7)->GetUint())
+        {
+        case 0:  // 无舰队
+            danmaku->set_guard_level(live::GuardLevel::NO_GUARD);
+            break;
+        case 1:  // 总督
+            danmaku->set_guard_level(live::GuardLevel::LEVEL3);
+            break;
+        case 2:  // 提督
+            danmaku->set_guard_level(live::GuardLevel::LEVEL2);
+            break;
+        case 3:  // 舰长
+            danmaku->set_guard_level(live::GuardLevel::LEVEL1);
+        default:
+            // TODO: 错误处理
+            break;
+        }
+    }
+    else
+    {
+        // TODO: 错误处理
+    }
+
     user_message->set_allocated_danmaku(danmaku);
+    user_message->set_allocated_user(user_info);
     message->set_allocated_user_message(user_message);
 }
 
@@ -115,15 +228,24 @@ public:
     /// 用于处理拆开数据包获得的json。
     /// @param buf json的缓冲区，将在函数中复用。
     /// @return json转换为的protobuf序列化后的buffer。
-    const borrowed_message* serialize(char* buf)
+    const borrowed_message* serialize(char* buf, const unsigned int& room_id)
     {
         _document.ParseInsitu(buf);
-        // TODO: _message->set_room_id(...);
-        // if (_document["cmd"].IsString())
+        _message->set_room_id(room_id);
         // TODO: 使用boost::multiindex配合robin_hood::hash魔改robin_hood::unordered_map来避免无意义的内存分配
-        // if (command.find(...) != -1)
-        // command.find(string(_document["cmd"].GetString(), _document["cmd"].GetStringLength()))->second(_document, _message, &_arena);
-        command[string(_document["cmd"].GetString(), _document["cmd"].GetStringLength())](_document, _message, &_arena);
+        string cmd(_document["cmd"].GetString(), _document["cmd"].GetStringLength());
+        // TODO: 简化太过分的检查
+        // TODO: 针对不同的错误处理方式分拆if
+        if (_document.HasMember("cmd")
+            && _document["cmd"].IsString()
+            && command.find(cmd) != command.end())
+        {
+            command[cmd](_document, _message, &_arena);
+        }
+        else
+        {
+            // TODO: 错误处理
+        }
         return &_borrowed_message;
     }
     ~parse_context();
@@ -138,9 +260,9 @@ parse_context* get_parse_context()
     return _parse_context.get();
 }
 
-const borrowed_buffer* serialize_buffer(char* buf)
+const borrowed_buffer* serialize_buffer(char* buf, const unsigned int& room_id)
 {
-    return get_parse_context()->serialize(buf);
+    return get_parse_context()->serialize(buf, room_id);
 }
 
 }  // namespace vNerve::bilibili
