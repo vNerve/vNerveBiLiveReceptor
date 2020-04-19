@@ -90,8 +90,7 @@ void vNerve::bilibili::bilibili_session::on_resolved(
     spdlog::debug(
         "[session] Connecting room {}: server DN resolved, connecting to endpoints.",
         room_id);
-    std::shared_ptr<boost::asio::ip::tcp::socket> socket =
-        std::make_shared<boost::asio::ip::tcp::socket>(_context);
+    auto socket = std::make_shared<boost::asio::ip::tcp::socket>(_context);
     async_connect(
         *socket, endpoint_iterator,
         boost::bind(&bilibili_session::on_connected, this,

@@ -11,6 +11,7 @@ set(WORKER_EXECUTABLE_NAME
     v_nerve_bilibili_receptor)
 set(WORKER_SOURCE_FILES
     src/shared/config.cpp
+    src/shared/simple_worker_proto.cpp
 
     src/worker/main.cpp
     src/worker/config.cpp

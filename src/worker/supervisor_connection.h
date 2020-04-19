@@ -9,6 +9,7 @@
 
 namespace vNerve::bilibili::worker_supervisor
 {
+using supervisor_connected_handler = std::function<void()>;
 using supervisor_buffer_handler = std::function<void(unsigned char*, size_t)>;
 using supervisor_buffer_deleter = std::function<void(unsigned char*)>;
 using supervisor_buffer_owned = std::pair<boost::asio::mutable_buffer, supervisor_buffer_deleter>;
@@ -28,6 +29,11 @@ private:
     boost::asio::ip::tcp::resolver _resolver;
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
 
+    std::unique_ptr<unsigned char[]> _read_buffer_ptr;
+    size_t _read_buffer_size;
+    size_t _read_buffer_offset = 0;
+    size_t _skipping_bytes = 0;
+
     boost::asio::deadline_timer _timer;
     int _retry_interval_sec;
 
@@ -37,19 +43,28 @@ private:
     moodycamel::ConcurrentQueue<supervisor_buffer_owned> _queue;
     bool _pending_write = false;
     supervisor_buffer_handler _buffer_handler;
+    supervisor_connected_handler _connected_handler;
 
     void start_async_write();
+    void start_async_read();
     void connect();
+    void force_close();
+    void reschedule_retry_timer();
+
+    void on_retry_timer_tick(const boost::system::error_code& ec);
     void on_written(const ::boost::system::error_code& ec,
                     size_t bytes_transferred,
                     std::array<supervisor_buffer_owned, MAX_WRITE_BATCH> buffers, size_t batch_size);
     void on_resolved(
         const boost::system::error_code& ec,
-        const boost::asio::ip::tcp::resolver::iterator endpoint_iterator);
+        boost::asio::ip::tcp::resolver::iterator endpoint_iterator
+        );
+    void on_connected(const boost::system::error_code& ec, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
+    void on_receive(const boost::system::error_code&, size_t);
 
 public:
     supervisor_connection(config::config_t config,
-                           supervisor_buffer_handler buffer_handler);
+                          supervisor_buffer_handler buffer_handler, supervisor_connected_handler connected_handler);
     ~supervisor_connection();
 
     // Take the ownership of msg.

@@ -6,24 +6,31 @@
 
 namespace vNerve::bilibili::worker_supervisor
 {
+void deleter_unsigned_char_array(unsigned char* buf)
+{
+    delete[] buf;
+}
+
 supervisor_session::supervisor_session(config::config_t config)
     : _config(config),
       _connection(config,
                   std::bind(&supervisor_session::on_supervisor_message,
-                               shared_from_this(), std::placeholders::_1, std::placeholders::_2))
+                            shared_from_this(), std::placeholders::_1, std::placeholders::_2),
+                  std::bind(&supervisor_session::on_supervisor_connected, shared_from_this()))
 {
-    send_worker_ready();
+
 }
 
-void supervisor_session::send_worker_ready()
+void supervisor_session::on_supervisor_connected()
 {
-    /*auto msg = zmsg_new();
-    unsigned char* payload = new unsigned char[5];
-    payload[0] = worker_ready_code;
-    *(payload + 1) = boost::asio::detail::socket_ops::host_to_network_long((*_config)["max-rooms"].as<int>());
+    const int packet_length = simple_message_header_length + worker_ready_payload_length;
+    auto packet = new unsigned char[packet_length];
+    *reinterpret_cast<int*>(packet) = boost::asio::detail::socket_ops::host_to_network_long(worker_ready_payload_length);
+    packet[4] = worker_ready_code;
+    *reinterpret_cast<int*>(packet + 5) = boost::asio::detail::socket_ops::host_to_network_long((*_config)["max-rooms"].as<int>());
 
-    zmsg_addmem(msg, payload, sizeof(payload));
-    _connection.publish_msg(msg);*/
+    // TODO log
+    _connection.publish_msg(packet, packet_length, deleter_unsigned_char_array);
 }
 
 void supervisor_session::on_supervisor_message(unsigned char* msg, size_t len)
@@ -56,8 +63,7 @@ void supervisor_session::on_supervisor_message(unsigned char* msg, size_t len)
     }*/
 }
 
-void supervisor_session::on_data(unsigned char* data, size_t len,
-                                 zmq_memory_deleter deleter)
+void supervisor_session::on_data(unsigned char* data, size_t len)
 {
     /*auto frame = zframe_frommem(data, len, deleter, data);
     auto msg = zmsg_new();

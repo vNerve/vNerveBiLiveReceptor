@@ -27,7 +27,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
         return std::pair<size_t, size_t>(
             0, next_skipping_size);  // continue disposing
     }
-    auto remaining = transferred - skipping_size;
+    long long remaining = transferred - skipping_size;
     auto begin = buf + skipping_size;
 
     while (remaining > 0)
@@ -41,7 +41,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
             spdlog::trace(
                 "[bili_buffer] [{:p}] Remaining bytes can't form a header. Request for more data be written to buf+{}.",
                 buf, remaining);
-            std::memcpy(buf, begin, remaining);
+            std::memmove(buf, begin, remaining);
             return std::pair<size_t, size_t>(remaining, 0);
         }
         auto header = reinterpret_cast<bilibili_packet_header*>(begin);
@@ -67,7 +67,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
         if (length > remaining)
         {
             // need more data.
-            std::memcpy(buf, begin, remaining);
+            std::memmove(buf, begin, remaining);
             spdlog::trace(
                 "[bili_buffer] [{:p}] Packet not complete. Request for more data be written to buf+{}.",
                 buf, remaining);
@@ -76,9 +76,9 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
 
         // 到此处我们拥有一个完整的数据包：[begin, begin + length)
 
-        handle_packet(buf);
+        handle_packet(begin);
         remaining -= length;
-        buf += length;
+        begin += length;
     }
 
     return std::pair(0, 0);  // read from starting, and skip no bytes.
