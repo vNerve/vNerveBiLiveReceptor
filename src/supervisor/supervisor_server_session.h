@@ -1,6 +1,8 @@
 #pragma once
 
 #include "config.h"
+#include "simple_worker_proto_handler.h"
+
 #include <memory>
 #include <random>
 #include <boost/asio.hpp>
@@ -12,6 +14,7 @@ namespace vNerve::bilibili::worker_supervisor
 using supervisor_buffer_handler =
     std::function<void(unsigned long long ,
                        unsigned char* , size_t )>;
+using supervisor_buffer_deleter = std::function<void(unsigned char*)>;
 using supervisor_tick_handler = std::function<void()>;
 using supervisor_new_worker_handler = std::function<void(uint64_t)>;
 
@@ -25,11 +28,12 @@ private:
 
     boost::asio::io_context _context;
     robin_hood::unordered_map<uint64_t,
-                              std::shared_ptr<boost::asio::ip::tcp::socket>>
+                              std::pair<std::shared_ptr<boost::asio::ip::tcp::socket>, std::unique_ptr<simple_worker_proto_handler>>>
         _sockets;
     boost::asio::ip::tcp::acceptor _acceptor;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
     int _timer_interval_ms;
+    size_t _read_buffer_size;
 
     boost::thread _thread;
     supervisor_buffer_handler _buffer_handler;
@@ -60,7 +64,7 @@ public:
     supervisor_server_session& operator =(supervisor_server_session && another) = delete;
 
     /// @param msg Message to be sent. Taking ownership of msg
-    void send_message(uint64_t identifier, unsigned char* msg, size_t len);
+    void send_message(uint64_t identifier, unsigned char* msg, size_t len, supervisor_buffer_deleter deleter);
     void disconnect_worker(uint64_t identifier);
 };
 }  // namespace vNerve::bilibili::worker_supervisor

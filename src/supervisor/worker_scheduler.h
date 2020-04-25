@@ -147,7 +147,7 @@ private:
     void handle_new_worker(uint64_t identifier);
     void handle_buffer(unsigned long long identifier, unsigned char* payload_data, size_t payload_len);
     void send_to_identifier(uint64_t identifier, unsigned char* payload,
-                            size_t size);
+                            size_t size, std::function<void(unsigned char*)> deleter);
 
 public:
     scheduler_session(config::config_t config);

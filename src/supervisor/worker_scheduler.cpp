@@ -116,12 +116,12 @@ void scheduler_session::check_all_states()
 
 void scheduler_session::check_task_intervals()
 {
-
+    // TODO impl
 }
 
 void scheduler_session::check_rooms()
 {
-
+    // TODO impl
 }
 
 void scheduler_session::handle_new_worker(
@@ -229,8 +229,8 @@ void scheduler_session::handle_buffer(
 }
 
 void scheduler_session::send_to_identifier(
-    uint64_t identifier, unsigned char* payload, const size_t size)
+    const uint64_t identifier, unsigned char* payload, const size_t size, supervisor_buffer_deleter deleter)
 {
-    _worker_session->send_message(identifier, payload, size);
+    _worker_session->send_message(identifier, payload, size, deleter);
 }
 }

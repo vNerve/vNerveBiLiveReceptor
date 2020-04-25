@@ -16,7 +16,8 @@ supervisor_server_session(
       _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
       _acceptor(_context),
       _rand_engine(_rand()),
-      _timer_interval_ms((*config)["check-interval-ms"].as<int>())
+      _timer_interval_ms((*config)["check-interval-ms"].as<int>()),
+      _read_buffer_size((*config)["check-interval-ms"].as<int>())
 {
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
@@ -54,7 +55,15 @@ void supervisor_server_session::on_accept(
     else
     {
         uint64_t identifier = _rand_dist(_rand_engine);
-        _sockets.emplace(identifier, socket);
+        _sockets.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(identifier),
+            std::forward_as_tuple(
+                socket,
+                std::make_unique<simple_worker_proto_handler>(
+                    socket, _read_buffer_size,
+                    std::bind(_buffer_handler, identifier, std::placeholders::_1, std::placeholders::_2),
+                    std::bind(&supervisor_server_session::disconnect_worker, shared_from_this(), identifier))));
         _new_worker_handler(identifier);
     }
 
@@ -87,24 +96,20 @@ void supervisor_server_session::on_timer_tick(const boost::system::error_code& e
 }
 
 void supervisor_server_session::
-send_message(uint64_t identifier, unsigned char* msg, size_t len)
+    send_message(uint64_t identifier, unsigned char* msg, size_t len, supervisor_buffer_deleter deleter)
 {
     auto socket_iter = _sockets.find(identifier);
     if (socket_iter == _sockets.end())
         return;
-    auto buf = new unsigned char[len + sizeof(unsigned int)];
-    *reinterpret_cast<unsigned int*>(buf) =
-        boost::asio::detail::socket_ops::host_to_network_long(
-            static_cast<unsigned int>(len));
-    std::memcpy(buf + sizeof(unsigned int), msg, len);
 
-    auto& socket = *(socket_iter->second);
-    boost::asio::async_write(socket, boost::asio::const_buffer(buf, len),
-                             [msg](const boost::system::error_code&,
+    auto& socket = *(socket_iter->second.first);
+    // TODO use a queue!!!!
+    boost::asio::async_write(socket, boost::asio::const_buffer(msg, len),
+                             [msg, deleter](const boost::system::error_code&,
                                    std::size_t) -> void
                              {
                                  // todo log error here?
-                                 delete[] msg;
+                                 deleter(msg);
                              });
 }
 
@@ -114,7 +119,7 @@ void supervisor_server_session::disconnect_worker(uint64_t identifier)
     if (socket_iter == _sockets.end())
         return;
 
-    auto socket = socket_iter->second;
+    auto socket = socket_iter->second.first;
     _sockets.erase(socket_iter);
     auto ec = boost::system::error_code();
     socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
