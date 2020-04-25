@@ -1,6 +1,8 @@
 #pragma once
 
 #include "config.h"
+#include "simple_worker_proto_handler.h"
+
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
 
@@ -29,10 +31,7 @@ private:
     boost::asio::ip::tcp::resolver _resolver;
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
 
-    std::unique_ptr<unsigned char[]> _read_buffer_ptr;
-    size_t _read_buffer_size;
-    size_t _read_buffer_offset = 0;
-    size_t _skipping_bytes = 0;
+    simple_worker_proto_handler _proto_handler;
 
     boost::asio::deadline_timer _timer;
     int _retry_interval_sec;
@@ -42,11 +41,9 @@ private:
 
     moodycamel::ConcurrentQueue<supervisor_buffer_owned> _queue;
     bool _pending_write = false;
-    supervisor_buffer_handler _buffer_handler;
     supervisor_connected_handler _connected_handler;
 
     void start_async_write();
-    void start_async_read();
     void connect();
     void force_close();
     void reschedule_retry_timer();
@@ -60,7 +57,7 @@ private:
         boost::asio::ip::tcp::resolver::iterator endpoint_iterator
         );
     void on_connected(const boost::system::error_code& ec, std::shared_ptr<boost::asio::ip::tcp::socket> socket);
-    void on_receive(const boost::system::error_code&, size_t);
+    void on_failed();
 
 public:
     supervisor_connection(config::config_t config,

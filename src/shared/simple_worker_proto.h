@@ -15,6 +15,7 @@ inline const unsigned char assign_room_code = 0x10000001;
 inline const unsigned char unassign_room_code = 0x10000002;
 
 inline const unsigned int worker_ready_payload_length = 1 + 4;
+inline const unsigned int assign_unassign_payload_length = 1 + 4;
 
 /*
  * All big endian.

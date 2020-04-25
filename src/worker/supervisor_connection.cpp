@@ -13,18 +13,15 @@ supervisor_connection::supervisor_connection(const config::config_t config,
     : _config(config),
       _guard(_context.get_executor()),
       _resolver(_context),
-      _read_buffer_size((*config)["read-buffer"].as<size_t>()),
+      _proto_handler(nullptr, ((*config)["read-buffer"].as<size_t>()), buffer_handler, boost::bind(&supervisor_connection::on_failed, shared_from_this())),
       _timer(_context),
       _retry_interval_sec((*config)["retry-interval-sec"].as<int>()),
       _supervisor_host((*config)["supervisor-host"].as<std::string>()),
       _supervisor_port(std::to_string((*config)["supervisor-port"].as<int>())),
-      _buffer_handler(buffer_handler),
       _connected_handler(connected_handler)
 {
-    _read_buffer_ptr =
-        std::unique_ptr<unsigned char[]>(new unsigned char[_read_buffer_size]);
     _thread = boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
-    _context.post(boost::bind(connect, shared_from_this()));
+    post(_context, boost::bind(&supervisor_connection::connect, shared_from_this()));
 }
 
 supervisor_connection::~supervisor_connection()
@@ -79,21 +76,6 @@ void supervisor_connection::start_async_write()
                     bufs, bufCount));
 }
 
-void supervisor_connection::start_async_read()
-{
-    // TODO log
-    if (!_socket)
-        return;
-    spdlog::trace(
-        "[supervisor_conn] Starting next async read. offset={}, size={}/{}", _read_buffer_offset, _read_buffer_size - _read_buffer_offset, _read_buffer_size);
-    _socket->async_receive(
-        boost::asio::buffer(_read_buffer_ptr.get() + _read_buffer_offset,
-                            _read_buffer_size - _read_buffer_offset),
-        boost::bind(on_receive, this,
-                    boost::asio::placeholders::error,
-                    boost::asio::placeholders::bytes_transferred));
-}
-
 void supervisor_connection::connect()
 {
     if (_socket)
@@ -109,6 +91,8 @@ void supervisor_connection::connect()
 void supervisor_connection::force_close()
 {
     auto nec = boost::system::error_code();
+    if (!_socket)
+        return;
     _socket->shutdown(boost::asio::socket_base::shutdown_both, nec);
     _socket->close(nec);  // nec ignored
     _socket.reset();
@@ -116,6 +100,7 @@ void supervisor_connection::force_close()
 
 void supervisor_connection::reschedule_retry_timer()
 {
+    _timer.cancel();
     _timer.expires_from_now(boost::posix_time::seconds(_retry_interval_sec));
     _timer.async_wait(boost::bind(&supervisor_connection::on_retry_timer_tick, shared_from_this(), boost::asio::placeholders::error));
 }
@@ -182,7 +167,7 @@ void supervisor_connection::on_resolved(const boost::system::error_code& ec,
         *socket, endpoint_iterator,
         boost::bind(&supervisor_connection::on_connected, shared_from_this(),
                     boost::asio::placeholders::error,
-                    boost::asio::placeholders::iterator, socket));
+                    socket));
 }
 
 void supervisor_connection::on_connected(const boost::system::error_code& ec, std::shared_ptr<boost::asio::ip::tcp::socket> socket)
@@ -209,29 +194,13 @@ void supervisor_connection::on_connected(const boost::system::error_code& ec, st
     _socket = socket;
 
     // todo logging
-    start_async_read();
+    _proto_handler.reset(socket);
     _connected_handler();
 }
 
-void supervisor_connection::on_receive(const boost::system::error_code& ec, size_t transferred)
+void supervisor_connection::on_failed()
 {
-    if (ec)
-    {
-        if (ec.value() == boost::asio::error::operation_aborted)
-        {
-            spdlog::debug("[supervisor_conn] Cancelling async reading.", ec);
-            return;  // closing socket.
-        }
-        // TODO error handling
-    }
-
-    spdlog::debug("[supervisor_conn] Received data block(len={})", transferred);
-    auto [new_offset, new_skipping_bytes] =
-        handle_simple_message(_read_buffer_ptr.get(), transferred, _read_buffer_size,
-                              _skipping_bytes, _buffer_handler);
-    _read_buffer_offset = new_offset;
-    _skipping_bytes = new_skipping_bytes;
-
-    start_async_read();
+    force_close();
+    reschedule_retry_timer();
 }
 }

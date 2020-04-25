@@ -12,6 +12,7 @@ set(WORKER_EXECUTABLE_NAME
 set(WORKER_SOURCE_FILES
     src/shared/config.cpp
     src/shared/simple_worker_proto.cpp
+    src/shared/simple_worker_proto_handler.cpp
 
     src/worker/main.cpp
     src/worker/config.cpp
@@ -38,6 +39,8 @@ set(SUPERVISOR_EXECUTABLE_NAME
     v_nerve_bilibili_receptor_supervisor)
 set(SUPERVISOR_SOURCE_FILES
     src/shared/config.cpp
+    src/shared/simple_worker_proto.cpp
+    src/shared/simple_worker_proto_handler.cpp
 
     src/supervisor/main.cpp
     src/supervisor/config.cpp
@@ -61,6 +64,7 @@ conan_cmake_run(REQUIRES
                     "protobuf/3.11.4@charliejiang/stable"
                     "cpp-httplib/0.5.7"
                 BASIC_SETUP CMAKE_TARGETS
+                ENV "CONAN_CMAKE_GENERATOR=Ninja"
                 BUILD missing)
 
 if (WIN32)

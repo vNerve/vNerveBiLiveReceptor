@@ -35,40 +35,40 @@ void supervisor_session::on_supervisor_connected()
 
 void supervisor_session::on_supervisor_message(unsigned char* msg, size_t len)
 {
-    /*if (zmsg_size(msg) != 1)
-        return;
-    auto frame = zmsg_pop(msg);
-    auto payload = zframe_data(frame);
-    auto payload_len = zframe_size(frame);
-
-    if (payload_len < 5)
+    if (len < assign_unassign_payload_length)  // OP_CODE + ROOM_ID
     {
+        // todo log
         return;
-        // todo log?
     }
 
-    auto op_code = payload[0];
+    unsigned char op_code = *msg;
+    int room_id = boost::asio::detail::socket_ops::host_to_network_long(*reinterpret_cast<int*>(msg + 1));
+
     switch (op_code)
     {
     case assign_room_code:
     {
+        // TODO impl
     }
-    break;
+        break;
     case unassign_room_code:
     {
+        // TODO impl
     }
-    break;
+        break;
     default:
         break;
-    }*/
+        // todo log
+    }
 }
 
-void supervisor_session::on_data(unsigned char* data, size_t len)
+void supervisor_session::on_data(unsigned char* data, size_t len, supervisor_buffer_deleter deleter)
 {
-    /*auto frame = zframe_frommem(data, len, deleter, data);
-    auto msg = zmsg_new();
-    zmsg_prepend(msg, &frame);
-    _connection.publish_msg(msg);
-    */
+    if (len < simple_message_header_length)
+    {
+        // TODO log
+        deleter(data);
+    }
+    _connection.publish_msg(data, len, deleter_unsigned_char_array);
 }
 }
