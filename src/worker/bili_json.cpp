@@ -52,18 +52,35 @@ const size_t PARSE_BUFFER_SIZE = 32 * 1024;
     bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second; \
     void cmd_##name(const Document& document, RoomMessage* message, Arena* arena)
 
+// TODO: 更好的命名
+#define ASSERT_TRACE(expression) \
+    if (!(expression))           \
+    {                            \
+        /* TODO: SPDLOG_TRACE */ \
+    }                            \
+    else
+
+// TODO: 更好的命名
+#define ASSERT_TRACE_THROW(expression) \
+    if (!(expression))                 \
+    {                                  \
+        /* TODO: SPDLOG_TRACE */       \
+        throw #expression;             \
+    }
+
 // 这个库似乎没有提供指定初始化容量的构造函数
 robin_hood::unordered_map<string, function<void(const Document&, RoomMessage*, Arena*)>> command;
 
 CMD(DANMU_MSG)
 {
-    // TODO: 高强度检查
-    // TODO: 错误处理
     // 以下变量类型均为 const rapidjson::GenericArray::Iterator&
     // 如何能够使用++iter并不产生内存开销？
-    auto const& info_iter = document["info"].GetArray().Begin();
-    auto const& basic_info_iter = info_iter->GetArray().Begin();
-    auto const& user_info_iter = (info_iter + 2)->GetArray().Begin();
+    ASSERT_TRACE_THROW(document["info"].IsArray())
+    auto const& info_iter = document["info"].Begin();
+    ASSERT_TRACE_THROW((info_iter)->IsArray())
+    auto const& basic_info_iter = (info_iter)->Begin();
+    ASSERT_TRACE_THROW((info_iter + 2)->IsArray())
+    auto const& user_info_iter = (info_iter + 2)->Begin();
     // 需要测试message使用完毕清空时embedded message是否会清空
     // 以下变量类型均为 T*
     auto user_message = Arena::CreateMessage<live::UserMessage>(arena);
@@ -74,143 +91,94 @@ CMD(DANMU_MSG)
     // 但是不同cmd的数据格式也有所不同
     // 因此设置UserInfo和设置RMQ的topic都只能强耦合在每个处理函数里
 
-    if (user_info_iter->IsUint64())  // uid
+    // user_info
+    ASSERT_TRACE((user_info_iter)->IsUint64())
+    // uid
+    user_info->set_uid(user_info_iter->GetUint64());
+    ASSERT_TRACE((user_info_iter + 1)->IsString())
+    // uname
+    user_info->set_name((user_info_iter + 1)->GetString(), (user_info_iter + 1)->GetStringLength());
+    ASSERT_TRACE((user_info_iter + 2)->IsBool())
+    // admin
+    user_info->set_admin((user_info_iter + 2)->GetBool());
+    ASSERT_TRACE((user_info_iter + 3)->IsBool() && (user_info_iter + 4)->IsBool())
+    // 这两个字段分别是月费/年费会员
+    // 都为假时无会员 都为真时报错
+    if ((user_info_iter + 3)->GetBool() == (user_info_iter + 4)->GetBool())
     {
-        user_info->set_uid(user_info_iter->GetUint64());
+        if ((user_info_iter + 3)->GetBool())
+            ;  // TODO: 错误处理
+        else
+            user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
     }
     else
     {
-        // TODO: 错误处理
-    }
-    if ((user_info_iter + 1)->IsString())  // uname
-    {
-        user_info->set_name((user_info_iter + 1)->GetString(), (user_info_iter + 1)->GetStringLength());
-    }
-    else
-    {
-        // TODO: 错误处理
-    }
-    if ((user_info_iter + 2)->IsBool())  // admin
-    {
-        user_info->set_admin((user_info_iter + 2)->GetBool());
-    }
-    else
-    {
-        // TODO: 错误处理
-    }
-    if ((user_info_iter + 3)->IsBool() && (user_info_iter + 4)->IsBool())  // live vip
-    {
-        // 这两个字段分别是月费/年费会员
-        // 都为假时无会员 都为真时报错
-        if ((user_info_iter + 3)->GetBool() == (user_info_iter + 4)->GetBool())
-        {
-            if ((user_info_iter + 3)->GetBool())
-            {
-                // TODO: 错误处理
-            }
-            else
-            {
-                user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
-            }
-        }
-        else if ((user_info_iter + 3)->GetBool())
-        {
+        if ((user_info_iter + 3)->GetBool())
             user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
-        }
         else
-        {
             user_info->set_vip_level(live::LiveVipLevel::YEARLY);
-        }
+    }
+    ASSERT_TRACE((user_info_iter + 5)->IsNumber())
+    if (10000 == (user_info_iter + 5)->GetInt())
+    {
+        user_info->set_regular_user(true);
+    }
+    else if (5000 == (user_info_iter + 5)->GetInt())
+    {
+        user_info->set_regular_user(false);
     }
     else
     {
         // TODO: 错误处理
     }
-    if ((user_info_iter + 5)->IsNumber())
-    {
-        if (10000 == (user_info_iter + 5)->GetInt())
-        {
-            user_info->set_regular_user(true);
-        }
-        else if (5000 == (user_info_iter + 5)->GetInt())
-        {
-            user_info->set_regular_user(false);
-        }
-        else
-        {
-            // TODO: 错误处理
-        }
-    }
-    else
-    {
-        // TODO: 错误处理
-    }
-    if ((user_info_iter + 6)->IsBool())
-    {
-        user_info->set_phone_verified((user_info_iter + 6)->GetBool());
-    }
-    else
-    {
-        // TODO: 错误处理
-    }
-    user_message->set_allocated_user(user_info);
+    ASSERT_TRACE((user_info_iter + 6)->IsBool())
+    // phone_verified
+    user_info->set_phone_verified((user_info_iter + 6)->GetBool());
 
-    if ((info_iter + 1)->IsString())  // message
+    // danmaku
+    // 设置字符串的函数会分配额外的string 并且不通过arena分配内存
+    // 需要考虑tcmalloc等
+    ASSERT_TRACE((info_iter + 1)->IsString())
+    // message
+    danmaku->set_message((info_iter + 1)->GetString(), (info_iter + 1)->GetStringLength());
+    ASSERT_TRACE((basic_info_iter + 9)->IsUint())
+    // danmaku type
+    switch ((basic_info_iter + 9)->GetUint())
     {
-        // 设置字符串的函数会分配额外的string 并且不通过arena分配内存
-        // 需要考虑tcmalloc等
-        danmaku->set_message((info_iter + 1)->GetString(), (info_iter + 1)->GetStringLength());
-    }
-    else
-    {
+    case 0:  // 普通弹幕
+        danmaku->set_lottery_type(live::LotteryDanmakuType::NO_LOTTERY);
+        break;
+    case 1:  // 节奏风暴
+        danmaku->set_lottery_type(live::LotteryDanmakuType::STORM);
+        break;
+    case 2:  // 抽奖弹幕
+        danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
+        break;
+    default:
         // TODO: 错误处理
+        break;
     }
-    if ((basic_info_iter + 9)->IsUint())  // danmaku type
+    ASSERT_TRACE((info_iter + 7)->IsUint())
+    // guard level
+    switch ((info_iter + 7)->GetUint())
     {
-        switch ((basic_info_iter + 9)->GetUint())
-        {
-        case 0:  // 普通弹幕
-            danmaku->set_lottery_type(live::LotteryDanmakuType::NO_LOTTERY);
-            break;
-        case 1:  // 节奏风暴
-            danmaku->set_lottery_type(live::LotteryDanmakuType::STORM);
-            break;
-        case 2:  // 抽奖弹幕
-            danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
-            break;
-        default:
-            // TODO: 错误处理
-            break;
-        }
-    }
-    else
-    {
+    case 0:  // 无舰队
+        danmaku->set_guard_level(live::GuardLevel::NO_GUARD);
+        break;
+    case 1:  // 总督
+        danmaku->set_guard_level(live::GuardLevel::LEVEL3);
+        break;
+    case 2:  // 提督
+        danmaku->set_guard_level(live::GuardLevel::LEVEL2);
+        break;
+    case 3:  // 舰长
+        danmaku->set_guard_level(live::GuardLevel::LEVEL1);
+    default:
         // TODO: 错误处理
+        break;
     }
-    if ((info_iter + 7)->IsUint())  // guard level
-    {
-        switch ((info_iter + 7)->GetUint())
-        {
-        case 0:  // 无舰队
-            danmaku->set_guard_level(live::GuardLevel::NO_GUARD);
-            break;
-        case 1:  // 总督
-            danmaku->set_guard_level(live::GuardLevel::LEVEL3);
-            break;
-        case 2:  // 提督
-            danmaku->set_guard_level(live::GuardLevel::LEVEL2);
-            break;
-        case 3:  // 舰长
-            danmaku->set_guard_level(live::GuardLevel::LEVEL1);
-        default:
-            // TODO: 错误处理
-            break;
-        }
-    }
-    else
-    {
-        // TODO: 错误处理
-    }
+
+    user_message->set_allocated_user(user_info);
     user_message->set_allocated_danmaku(danmaku);
     message->set_allocated_user_message(user_message);
 }
