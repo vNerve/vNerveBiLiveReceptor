@@ -59,17 +59,16 @@ CMD(DANMU_MSG)
 
     ASSERT_TRACE(document.HasMember("info"))
     ASSERT_TRACE(document["info"].IsArray())
+    // 以下变量均为 rapidjson::GenericArray ?
     // 数组数量不对是结构性错误
     // 但b站很有可能在不改变先前字段的情况下添加字段
-    // 或许应改成document["info"].MemberCount() >= 15
-    // 这几个变量都是什么类型
-    ASSERT_TRACE(document["info"].MemberCount() == 15);
-    auto const& info = document["info"];  // 或 document["info"].GetArray()?
+    ASSERT_TRACE(document["info"].MemberCount() >= 15);
+    auto const& info = document["info"];  // 或 document["info"].GetArray() ?
     ASSERT_TRACE(info[0].IsArray())
-    ASSERT_TRACE(info[0].MemberCount() == 11)
+    ASSERT_TRACE(info[0].MemberCount() >= 11)
     auto const& basic_info = info[0];
     ASSERT_TRACE(info[2].IsArray())
-    ASSERT_TRACE(info[2].MemberCount() == 8)
+    ASSERT_TRACE(info[2].MemberCount() >= 8)
     auto const& user_info = info[2];
     // 以下变量类型均为 T*
     auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
