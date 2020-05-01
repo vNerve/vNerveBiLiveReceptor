@@ -72,20 +72,20 @@ CMD(DANMU_MSG)
     ASSERT_TRACE(info[2].MemberCount() == 8)
     auto const& user_info = info[2];
     // 以下变量类型均为 T*
-    auto embeded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
-    auto embeded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
-    auto embeded_danmaku = Arena::CreateMessage<live::DanmakuMessage>(arena);
+    auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
+    auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
+    auto embedded_danmaku = Arena::CreateMessage<live::DanmakuMessage>(arena);
 
     // user_info
     ASSERT_TRACE(user_info[0].IsUint64())
     // uid
-    embeded_user_info->set_uid(user_info[0].GetUint64());
+    embedded_user_info->set_uid(user_info[0].GetUint64());
     ASSERT_TRACE(user_info[1].IsString())
     // uname
-    embeded_user_info->set_name(user_info[1].GetString(), user_info[1].GetStringLength());
+    embedded_user_info->set_name(user_info[1].GetString(), user_info[1].GetStringLength());
     ASSERT_TRACE(user_info[2].IsBool())
     // admin
-    embeded_user_info->set_admin(user_info[2].GetBool());
+    embedded_user_info->set_admin(user_info[2].GetBool());
     ASSERT_TRACE(user_info[3].IsBool() && user_info[4].IsBool())
     // 这两个字段分别是月费/年费会员
     // 都为假时无会员 都为真时报错
@@ -94,24 +94,24 @@ CMD(DANMU_MSG)
         if (user_info[3].GetBool())
             ;  // 均为真 报错 TODO: 错误处理
         else   // 均为假 无直播会员
-            embeded_user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
+            embedded_user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
     }
     else
     {
         if (user_info[3].GetBool())
             // 月费会员为真 年费会员为假 月费
-            embeded_user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
+            embedded_user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
         else  // 月费会员为假 年费会员为真 年费
-            embeded_user_info->set_vip_level(live::LiveVipLevel::YEARLY);
+            embedded_user_info->set_vip_level(live::LiveVipLevel::YEARLY);
     }
     ASSERT_TRACE(user_info[5].IsNumber())
     if (10000 == user_info[5].GetInt())
     {
-        embeded_user_info->set_regular_user(true);
+        embedded_user_info->set_regular_user(true);
     }
     else if (5000 == user_info[5].GetInt())
     {
-        embeded_user_info->set_regular_user(false);
+        embedded_user_info->set_regular_user(false);
     }
     else
     {
@@ -119,26 +119,26 @@ CMD(DANMU_MSG)
     }
     ASSERT_TRACE(user_info[6].IsBool())
     // phone_verified
-    embeded_user_info->set_phone_verified(user_info[6].GetBool());
+    embedded_user_info->set_phone_verified(user_info[6].GetBool());
 
     // danmaku
     // 设置字符串的函数会分配额外的string 并且不通过arena分配内存
     // 需要考虑tcmalloc等
     ASSERT_TRACE(info[1].IsString())
     // message
-    embeded_danmaku->set_message(info[1].GetString(), info[1].GetStringLength());
+    embedded_danmaku->set_message(info[1].GetString(), info[1].GetStringLength());
     ASSERT_TRACE(basic_info[9].IsUint())
     // danmaku type
     switch (basic_info[9].GetUint())
     {
     case 0:  // 普通弹幕
-        embeded_danmaku->set_lottery_type(live::LotteryDanmakuType::NO_LOTTERY);
+        embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::NO_LOTTERY);
         break;
     case 1:  // 节奏风暴
-        embeded_danmaku->set_lottery_type(live::LotteryDanmakuType::STORM);
+        embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::STORM);
         break;
     case 2:  // 抽奖弹幕
-        embeded_danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
+        embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
         break;
     default:
         // TODO: 错误处理
@@ -149,24 +149,24 @@ CMD(DANMU_MSG)
     switch (info[7].GetUint())
     {
     case 0:  // 无舰队
-        embeded_danmaku->set_guard_level(live::GuardLevel::NO_GUARD);
+        embedded_danmaku->set_guard_level(live::GuardLevel::NO_GUARD);
         break;
     case 1:  // 总督
-        embeded_danmaku->set_guard_level(live::GuardLevel::LEVEL3);
+        embedded_danmaku->set_guard_level(live::GuardLevel::LEVEL3);
         break;
     case 2:  // 提督
-        embeded_danmaku->set_guard_level(live::GuardLevel::LEVEL2);
+        embedded_danmaku->set_guard_level(live::GuardLevel::LEVEL2);
         break;
     case 3:  // 舰长
-        embeded_danmaku->set_guard_level(live::GuardLevel::LEVEL1);
+        embedded_danmaku->set_guard_level(live::GuardLevel::LEVEL1);
     default:
         // TODO: 错误处理
         break;
     }
 
-    embeded_user_message->set_allocated_user(embeded_user_info);
-    embeded_user_message->set_allocated_danmaku(embeded_danmaku);
-    message->set_allocated_user_message(embeded_user_message);
+    embedded_user_message->set_allocated_user(embedded_user_info);
+    embedded_user_message->set_allocated_danmaku(embedded_danmaku);
+    message->set_allocated_user_message(embedded_user_message);
     return true;
 }
 
