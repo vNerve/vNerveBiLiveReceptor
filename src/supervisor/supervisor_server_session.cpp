@@ -17,7 +17,7 @@ supervisor_server_session(
       _acceptor(_context),
       _rand_engine(_rand()),
       _timer_interval_ms((*config)["check-interval-ms"].as<int>()),
-      _read_buffer_size((*config)["check-interval-ms"].as<int>())
+      _read_buffer_size((*config)["read-buffer"].as<size_t>())
 {
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
@@ -54,7 +54,7 @@ void supervisor_server_session::on_accept(
     }
     else
     {
-        uint64_t identifier = _rand_dist(_rand_engine);
+        identifier_t identifier = _rand_dist(_rand_engine);
         _sockets.emplace(
             std::piecewise_construct,
             std::forward_as_tuple(identifier),
@@ -96,7 +96,7 @@ void supervisor_server_session::on_timer_tick(const boost::system::error_code& e
 }
 
 void supervisor_server_session::
-    send_message(uint64_t identifier, unsigned char* msg, size_t len, supervisor_buffer_deleter deleter)
+    send_message(identifier_t identifier, unsigned char* msg, size_t len, supervisor_buffer_deleter deleter)
 {
     auto socket_iter = _sockets.find(identifier);
     if (socket_iter == _sockets.end())
@@ -113,7 +113,7 @@ void supervisor_server_session::
                              });
 }
 
-void supervisor_server_session::disconnect_worker(uint64_t identifier)
+void supervisor_server_session::disconnect_worker(identifier_t identifier)
 {
     auto socket_iter = _sockets.find(identifier);
     if (socket_iter == _sockets.end())

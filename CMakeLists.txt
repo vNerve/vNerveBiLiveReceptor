@@ -46,6 +46,7 @@ set(SUPERVISOR_SOURCE_FILES
     src/supervisor/config.cpp
     src/supervisor/room_list_updater.cpp
     src/supervisor/supervisor_server_session.cpp
+    src/supervisor/simple_worker_proto_generator.cpp
     src/supervisor/worker_scheduler.cpp
     )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})

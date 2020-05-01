@@ -4,16 +4,18 @@
 
 namespace vNerve::bilibili::worker_supervisor
 {
+using simple_message_header = unsigned long;
 const size_t identifier_size = 8;
 const size_t routing_key_max_size = 24;
 
-inline const unsigned char worker_ready_code = 0x00000001;
-inline const unsigned char room_failed_code = 0x00000002;
-inline const unsigned char worker_data_code = 0x00000000;
+inline const unsigned char worker_ready_code = static_cast<unsigned char>(0x00000001);
+inline const unsigned char room_failed_code =  static_cast<unsigned char>(0x00000002);
+inline const unsigned char worker_data_code =  static_cast<unsigned char>(0x00000000);
 
-inline const unsigned char assign_room_code = 0x10000001;
-inline const unsigned char unassign_room_code = 0x10000002;
+inline const unsigned char assign_room_code =   static_cast<unsigned char>(0x10000001);
+inline const unsigned char unassign_room_code = static_cast<unsigned char>(0x10000002);
 
+inline const size_t simple_message_header_length = sizeof(unsigned int);
 inline const unsigned int worker_ready_payload_length = 1 + 4;
 inline const unsigned int assign_unassign_payload_length = 1 + 4;
 
@@ -34,8 +36,6 @@ inline const unsigned int assign_unassign_payload_length = 1 + 4;
  */
 
 using buffer_handler = std::function<void (unsigned char*, size_t)>;
-
-inline const size_t simple_message_header_length = sizeof(unsigned int);
 ///
 /// 用于处理一次读取获得的缓冲区。
 /// 一次缓冲区可能不完整或包含多个数据包。本函数可以处理此种情况。

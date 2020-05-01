@@ -2,84 +2,21 @@
 
 #include "supervisor_server_session.h"
 #include "simple_worker_proto.h"
+#include "simple_worker_proto_generator.h"
+
+#include <algorithm>
+#include <boost/range/adaptors.hpp>
 
 namespace vNerve::bilibili::worker_supervisor
 {
-// =============================== worker_session ===============================
+supervisor_buffer_deleter unsigned_char_array_deleter = [](unsigned char* buf) -> void {
+    delete[] buf;
+};
 
-worker_session::~worker_session() {}
-
-void worker_session::
-    clear_all_rooms_no_notify()
+bool compare_worker(const worker_status* lhs, const worker_status* rhs)
 {
-    for (auto it = _connect_rooms.begin(); it != _connect_rooms.end();
-         it = _connect_rooms.erase(it)) // <-------- ERASING!
-    {
-        std::shared_ptr<room_session> room_ptr = it->second.lock();
-        room_ptr->remove_worker(_identifier);
-    }
-}
-
-void worker_session::remove_room(
-    uint32_t room_id)
-{
-    remove_room_no_notify(room_id);
-    // todo send unassign
-}
-
-void worker_session::remove_room_no_notify(uint32_t room_id)
-{
-    auto iter = _connect_rooms.find(room_id);
-    if (iter == _connect_rooms.end())
-        return;
-    std::weak_ptr<room_session> room_ptr = iter->second;
-    if (room_ptr.expired())
-        return;
-    room_ptr.lock()->remove_worker(_identifier);
-}
-
-// =============================== room_session ===============================
-
-std::shared_ptr<worker_session> room_session::remove_worker_and_get(
-        uint64_t identifier)
-{
-    auto iter = _connected_workers_and_last_time.find(identifier);
-    if (iter == _connected_workers_and_last_time.end())
-        return std::shared_ptr<worker_session>();
-    std::weak_ptr<worker_session> worker_ptr = iter->second.first;
-    _connected_workers_and_last_time.erase(iter);
-    return worker_ptr.lock();
-}
-
-void room_session::update_time(
-    uint64_t identifier, const std::chrono::system_clock::time_point& ts)
-{
-    auto worker_iter = _connected_workers_and_last_time.find(identifier);
-    if (worker_iter == _connected_workers_and_last_time.end())
-        return;
-    worker_iter->second.second = ts;
-}
-
-void room_session::remove_worker(
-    uint64_t identifier)
-{
-    _connected_workers_and_last_time.erase(identifier);
-}
-
-void room_session::remove_worker_both_side(
-    uint64_t identifier)
-{
-    auto worker = remove_worker_and_get(identifier);
-    if (worker)
-        worker->remove_room(_room_id);
-}
-
-void room_session::
-    remove_worker_both_side_no_notify(uint64_t identifier)
-{
-    auto worker = remove_worker_and_get(identifier);
-    if (worker)
-        worker->remove_room_no_notify(_room_id);
+    // TODO weight algorithm base on rank and remaining room;
+    return lhs->rank * (lhs->max_rooms - lhs->current_connections) > rhs->rank * (rhs->max_rooms - rhs->current_connections);
 }
 
 // =============================== scheduler_session ===============================
@@ -88,7 +25,8 @@ scheduler_session::scheduler_session(const config::config_t config)
     : _config(config),
       _min_check_interval(
           std::chrono::milliseconds(
-              (*config)["min-check-interval-ms"].as<int>()))
+              (*config)["min-check-interval-ms"].as<int>())),
+      _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>()))
 {
     _worker_session = std::make_shared<supervisor_server_session>(
         config,
@@ -102,6 +40,85 @@ scheduler_session::scheduler_session(const config::config_t config)
 
 scheduler_session::~scheduler_session() {}
 
+void scheduler_session::clear_worker_tasks(identifier_t identifier)
+{
+    auto& tasks_by_id = _tasks.get<tasks_by_identifier>();
+    tasks_by_id.erase(identifier);
+}
+
+void scheduler_session::reset_worker(worker_status* worker)
+{
+    clear_worker_tasks(worker->identifier);
+    worker->initialized = false;
+    worker->current_connections = 0;
+    worker->max_rooms = -1;
+}
+
+void scheduler_session::delete_worker(worker_status* worker)
+{
+    reset_worker(worker);
+    _workers.erase(worker->identifier);
+}
+
+void scheduler_session::delete_and_disconnect_worker(worker_status* worker)
+{
+    delete_worker(worker);
+    _worker_session->disconnect_worker(worker->identifier);
+}
+
+tasks_set::iterator scheduler_session::delete_task(tasks_set::iterator iter)
+{
+    auto& tasks_by_id_rid = _tasks.get<tasks_by_identifier_and_room_id>();
+    if (iter == tasks_by_id_rid.end())
+        return iter;
+    auto identifier = iter->identifier;
+    iter = tasks_by_id_rid.erase(iter);
+
+    auto& worker_iter = _workers.find(identifier);
+    if (worker_iter == _workers.end())
+        return iter;
+    // TODO better rank algorithm
+    worker_iter->second.rank -= 1.0;
+    return iter;
+}
+
+void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id)
+{
+    auto& tasks_by_id_rid = _tasks.get<tasks_by_identifier_and_room_id>();
+    auto task_iter = tasks_by_id_rid.find(boost::make_tuple(identifier, room_id));
+    delete_task(task_iter);
+}
+
+void scheduler_session::delete_task_unassign(identifier_t identifier, room_id_t room_id)
+{
+    delete_task(identifier, room_id);
+    send_unassign(identifier, room_id);
+}
+
+void scheduler_session::refresh_counts()
+{
+    auto& tasks_by_wid = _tasks.get<tasks_by_identifier>();
+    auto& tasks_by_rid = _tasks.get<tasks_by_room_id>();
+
+    for (auto& [identifier, worker] : _workers)
+        worker.current_connections = tasks_by_wid.count(identifier);
+    for (auto& [room_id, room] : _rooms)
+        room.current_connections = tasks_by_rid.count(room_id);
+}
+
+void scheduler_session::check_worker_task_interval()
+{
+    auto now = std::chrono::system_clock::now();
+    for (auto& [_, worker] : _workers)
+        if (now - worker.last_received > _worker_interval_threshold)
+            delete_and_disconnect_worker(&worker);
+    for (auto it = _tasks.begin(); it != _tasks.end();)
+        if (now - it->last_received <= _worker_interval_threshold)
+            ++it;
+        else
+            it = delete_task(it);
+}
+
 // Run in ZeroMQ Worker thread.
 void scheduler_session::check_all_states()
 {
@@ -110,49 +127,62 @@ void scheduler_session::check_all_states()
         return;
     _last_checked = current_time;
 
-    check_task_intervals();
-    check_rooms();
+    check_worker_task_interval();
+    refresh_counts();
+    // TODO 按时间实现回复worker->rank
+
+    std::vector<worker_status*> workers_available;
+    for (auto& [_, worker] : _workers)
+        if (worker.current_connections < worker.max_rooms)
+            workers_available.push_back(&worker);
+
+    std::sort(workers_available.begin(), workers_available.end(), compare_worker);
+
+    for (auto& [room_id, room] : _rooms)
+    {
+
+    }
 }
 
-void scheduler_session::check_task_intervals()
+void scheduler_session::send_assign(identifier_t identifier, room_id_t room_id)
 {
-    // TODO impl
+    auto [buf, siz] = generate_assign_packet(room_id);  // regular unsigned char[]
+    send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
-void scheduler_session::check_rooms()
+void scheduler_session::send_unassign(identifier_t identifier, room_id_t room_id)
 {
-    // TODO impl
+    auto [buf, siz] = generate_unassign_packet(room_id);  // regular unsigned char[]
+    send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
 void scheduler_session::handle_new_worker(
-    uint64_t identifier)
+    identifier_t identifier)
 {
     auto current_time = std::chrono::system_clock::now();
-    auto worker_iter = _worker_sessions.find(identifier);
-    auto worker_ptr = worker_iter != _worker_sessions.end()
+    auto worker_iter = _workers.find(identifier);
+    worker_status* worker_ptr = worker_iter != _workers.end()
                           ? &(worker_iter->second)
                           : nullptr;
     if (worker_ptr != nullptr)
     {
-        worker_ptr->reset();
-        worker_ptr->update_time(current_time);
+        // worker already existing. Reset the worker.
+        //clear_worker(*worker_ptr);
+        worker_ptr->last_received = current_time;
         return;
     }
 
     // Allocate new worker.
-    auto [worker_allocated_iter, allocated] = _worker_sessions.emplace(
-        std::piecewise_construct, std::forward_as_tuple(identifier),
-        std::forward_as_tuple(identifier));
+    auto [worker_allocated_iter, allocated] = _workers.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(identifier),
+        std::forward_as_tuple(identifier, current_time));
     assert(allocated);
-    worker_ptr = &worker_allocated_iter->second;
-    worker_ptr->update_time(current_time);
-    check_all_states();
-    // TODO assign tasks!
 }
 
 // Run in ZeroMQ Worker thread.
 void scheduler_session::handle_buffer(
-    unsigned long long identifier, unsigned char* payload_data,
+    identifier_t identifier, unsigned char* payload_data,
     size_t payload_len)
 {
     if (payload_len < 5)
@@ -161,40 +191,39 @@ void scheduler_session::handle_buffer(
         return;
     }
     auto op_code = payload_data[0];  // data[0]
-    auto room_id = boost::asio::detail::socket_ops::network_to_host_long(
-        *reinterpret_cast<unsigned long*>(payload_data + 1));  // data[1,2,3,4]
+    room_id_t room_id = boost::asio::detail::socket_ops::network_to_host_long(
+        *reinterpret_cast<simple_message_header*>(payload_data + 1));  // data[1,2,3,4]
 
-    auto worker_iter = _worker_sessions.find(identifier);
-    auto worker_ptr = worker_iter != _worker_sessions.end()
+    auto worker_iter = _workers.find(identifier);
+    worker_status* worker_ptr = worker_iter != _workers.end()
                           ? &(worker_iter->second)
                           : nullptr;
 
+    if (worker_ptr == nullptr)
+    {
+        clear_worker_tasks(identifier);
+        _worker_session->disconnect_worker(identifier);
+        return;
+    }
+
     auto current_time = std::chrono::system_clock::now();
     if (worker_ptr)
-        worker_ptr->update_time(current_time);
+        worker_ptr->last_received = current_time;
 
     if (op_code == worker_ready_code)
     {
         // see simple_worker_proto.h
         auto max_rooms = room_id;  // max_rooms is in the place of room_id
-        if (!worker_ptr)
-            return
-                // Reset worker.
-                worker_ptr->clear_all_rooms_no_notify();
-        worker_ptr->initialize_update_max_rooms(max_rooms);
+        // Reset worker.
+        reset_worker(worker_ptr);
+        worker_ptr->initialized = true;
+        worker_ptr->max_rooms = max_rooms;
         check_all_states();
-        // TODO reassign tasks!
     }
     else if (op_code == room_failed_code)
     {
-        if (worker_ptr)
-            worker_ptr->remove_room_no_notify(room_id);
-        // remove_room_no_notify will do this
-        /*auto room_iter = _room_sessions.find(room_id);
-        if (room_iter != _room_sessions.end())
-            room_iter->second.remove_worker(identifier);*/
+        delete_task(identifier, room_id);
         check_all_states();
-        // TODO reassign failed room!
     }
     else if (op_code == worker_data_code)
     {
@@ -203,23 +232,16 @@ void scheduler_session::handle_buffer(
             return;
             // TODO:Log
         }
+        // TODO update some "weight" of the worker
 
-        auto room_iter = _room_sessions.find(room_id);
-        auto room_ptr =
-            room_iter != _room_sessions.end() ? &(room_iter->second) : nullptr;
-        if (!room_ptr)
-        {
-            if (worker_ptr)
-                worker_ptr->remove_room(room_id);
+        tasks_by_identifier_and_room_id_t& idx = _tasks.get<0>();
+        auto task_iter = idx.find(boost::make_tuple(identifier, room_id));
+        if (task_iter == idx.end())
             return;
-        }
-        if (!worker_ptr)
-        {
-            room_ptr->remove_worker(identifier);
-            return;
-        }
-        room_ptr->update_time(identifier, current_time);
 
+        idx.modify(task_iter, [current_time](room_task& it) -> void {
+            it.last_received = current_time;
+        });
         auto crc32 = *reinterpret_cast<unsigned long*>(payload_data + 5);
         auto routing_key = reinterpret_cast<char*>(payload_data) + 9;
         auto routing_key_len = strnlen(routing_key, routing_key_max_size);
