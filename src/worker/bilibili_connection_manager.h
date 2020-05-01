@@ -18,7 +18,7 @@ namespace vNerve::bilibili
 ///
 /// Global network session for Bilibili Livestream chat crawling.
 /// This should be created only once through the whole program.
-class bilibili_session : public std::enable_shared_from_this<bilibili_session>
+class bilibili_connection_manager : public std::enable_shared_from_this<bilibili_connection_manager>
 {
     friend class bilibili_connection;
 private:
@@ -50,8 +50,8 @@ private:
     size_t _shared_zlib_buffer_size;
 
 public:
-    bilibili_session(config::config_t);
-    ~bilibili_session();
+    bilibili_connection_manager(config::config_t);
+    ~bilibili_connection_manager();
 
     void open_connection(int room_id);
 

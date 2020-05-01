@@ -1,4 +1,4 @@
-#include "bili_session.h"
+#include "bilibili_connection_manager.h"
 
 #include "bili_packet.h"
 
@@ -6,7 +6,7 @@
 #include <boost/thread.hpp>
 #include <spdlog/spdlog.h>
 
-vNerve::bilibili::bilibili_session::bilibili_session(const config::config_t options)
+vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const config::config_t options)
     : _guard(_context.get_executor()),
       _resolver(_context),
       _options(options),
@@ -26,7 +26,7 @@ vNerve::bilibili::bilibili_session::bilibili_session(const config::config_t opti
             boost::bind(&boost::asio::io_context::run, &_context));
 }
 
-vNerve::bilibili::bilibili_session::~bilibili_session()
+vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
 {
     // TODO Exception handling
     try
@@ -42,7 +42,7 @@ vNerve::bilibili::bilibili_session::~bilibili_session()
 }
 
 boost::asio::mutable_buffer
-vNerve::bilibili::bilibili_session::get_shared_zlib_buffer()
+vNerve::bilibili::bilibili_connection_manager::get_shared_zlib_buffer()
 {
     if (!_shared_zlib_buffer.get())
         _shared_zlib_buffer.reset(new unsigned char[_shared_zlib_buffer_size]);
@@ -50,7 +50,7 @@ vNerve::bilibili::bilibili_session::get_shared_zlib_buffer()
                                _shared_zlib_buffer_size);
 }
 
-void vNerve::bilibili::bilibili_session::open_connection(const int room_id)
+void vNerve::bilibili::bilibili_connection_manager::open_connection(const int room_id)
 {
     auto& server_addr = (*_options)["chat-server"].as<std::string>();
     auto port = std::to_string((*_options)["chat-server-port"].as<int>());
@@ -61,12 +61,12 @@ void vNerve::bilibili::bilibili_session::open_connection(const int room_id)
         room_id, server_addr, port);
     _resolver.async_resolve(
         server_addr, port,
-        boost::bind(&bilibili_session::on_resolved, this,
+        boost::bind(&bilibili_connection_manager::on_resolved, this,
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::iterator, room_id));
 }
 
-void vNerve::bilibili::bilibili_session::on_resolved(
+void vNerve::bilibili::bilibili_connection_manager::on_resolved(
     const boost::system::error_code& err,
     const boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
     const int room_id)
@@ -93,12 +93,12 @@ void vNerve::bilibili::bilibili_session::on_resolved(
     auto socket = std::make_shared<boost::asio::ip::tcp::socket>(_context);
     async_connect(
         *socket, endpoint_iterator,
-        boost::bind(&bilibili_session::on_connected, this,
+        boost::bind(&bilibili_connection_manager::on_connected, this,
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::iterator, socket, room_id));
 }
 
-void vNerve::bilibili::bilibili_session::on_connected(
+void vNerve::bilibili::bilibili_connection_manager::on_connected(
     const boost::system::error_code& err,
     boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket, int room_id)

@@ -16,7 +16,7 @@ set(WORKER_SOURCE_FILES
 
     src/worker/main.cpp
     src/worker/config.cpp
-    src/worker/bili_session.cpp
+    src/worker/bilibili_connection_manager.cpp
     src/worker/bili_conn.cpp
     src/worker/bili_packet.cpp
     src/worker/supervisor_connection.cpp
