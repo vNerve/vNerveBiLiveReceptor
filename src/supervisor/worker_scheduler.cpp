@@ -91,11 +91,11 @@ Iterator scheduler_session::delete_task(Iterator iter, bool desc_rank)
     return iter;
 }
 
-void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id)
+void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, bool desc_rank)
 {
     auto& tasks_by_id_rid = _tasks.get<tasks_by_identifier_and_room_id>();
     auto task_iter = tasks_by_id_rid.find(boost::make_tuple(identifier, room_id));
-    delete_task<tasks_by_identifier_and_room_id>(task_iter);
+    delete_task<tasks_by_identifier_and_room_id>(task_iter, desc_rank);
 }
 
 void scheduler_session::assign_task(worker_status* worker, room_status* room)
@@ -114,7 +114,7 @@ int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*
     long long sum = 0;
     for (worker_status* worker : workers_available)
         sum += worker->max_rooms;
-    return static_cast<int>(sum / rooms);
+    return static_cast<int>(sum / rooms); // TODO 这里要不要乘一个小于1的常数？避免100%负载
 }
 
 void scheduler_session::refresh_counts()
@@ -141,26 +141,30 @@ void scheduler_session::check_worker_task_interval()
             it = delete_task<tasks_by_identifier_and_room_id>(it);
 }
 
-// Run in ZeroMQ Worker thread.
 void scheduler_session::check_all_states()
 {
+    // Ensure minimum checking interval.
+    // This function is costly, so a min interval is required.
     auto current_time = std::chrono::system_clock::now();
     if (current_time - _last_checked < _min_check_interval)
         return;
     _last_checked = current_time;
 
+    // 检查最大间隔
     check_worker_task_interval();
+    // 刷新所有计数器
     refresh_counts();
     // TODO 按时间实现回复worker->rank
 
     tasks_by_room_id_t& tasks_by_rid = _tasks.get<tasks_by_room_id>();
-    tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>();
+    // tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>(); // unused
 
+    // 先找出所有没有满掉的 worker
     std::vector<worker_status*> workers_available(_workers.size());
     for (auto& [_, worker] : _workers)
         if (worker.current_connections < worker.max_rooms)
             workers_available.push_back(&worker);
-
+    // 按照权值算法排序 worker
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
     // Delete all inactive rooms
@@ -181,15 +185,15 @@ void scheduler_session::check_all_states()
     }
 
     int max_tasks_per_room = calculate_max_workers_per_room(workers_available, _rooms.size());
-    max_tasks_per_room = std::min(1, max_tasks_per_room);
+    max_tasks_per_room = std::min(1, max_tasks_per_room); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
 
     for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
     {
         room_id_t room_id = it->first;
         room_status& room = it->second;
 
-        auto overkill = room.current_connections - (max_tasks_per_room + 1);
-        auto underkill = max_tasks_per_room - room.current_connections;
+        auto overkill = room.current_connections - (max_tasks_per_room + 1); // 房间的 worker 太多了
+        auto underkill = max_tasks_per_room - room.current_connections; // 房间的 worker 不足
         if (overkill > 0)
         {
             // Too much workers on one single room. Unassign some.
