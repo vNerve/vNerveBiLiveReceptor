@@ -67,7 +67,7 @@ void scheduler_session::delete_and_disconnect_worker(worker_status* worker)
 }
 
 template <int N, class Iterator>
-Iterator scheduler_session::delete_task(Iterator iter)
+Iterator scheduler_session::delete_task(Iterator iter, bool desc_rank)
 {
     auto& tasks_by_id_rid = _tasks.get<N>();
     if (iter == tasks_by_id_rid.end())
@@ -80,7 +80,8 @@ Iterator scheduler_session::delete_task(Iterator iter)
     if (worker_iter != _workers.end())
     {
         // TODO better rank algorithm
-        worker_iter->second.rank -= 1.0;
+        if (desc_rank)
+            worker_iter->second.rank -= 1.0;
         worker_iter->second.current_connections--;
     }
 
@@ -195,7 +196,7 @@ void scheduler_session::check_all_states()
             auto [begin, end] = tasks_by_rid.equal_range(room_id);
             auto task_iter = begin;
             for (int i = 0; i < overkill && task_iter != end;
-                 i++, task_iter = delete_task<tasks_by_room_id>(task_iter))
+                 i++, task_iter = delete_task<tasks_by_room_id>(task_iter, false))
                 send_unassign(task_iter->identifier, task_iter->room_id);
         }
         else if (underkill > 0)

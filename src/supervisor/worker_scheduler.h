@@ -125,7 +125,7 @@ private:
     void delete_and_disconnect_worker(worker_status* worker);
 
     template <int N, class Iterator>
-    Iterator delete_task(Iterator iter);
+    Iterator delete_task(Iterator iter, bool desc_rank = true);
     void delete_task(identifier_t identifier, room_id_t room_id);
     void assign_task(worker_status* worker, room_status* room);
 
