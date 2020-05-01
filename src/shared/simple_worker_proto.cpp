@@ -37,7 +37,7 @@ std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_mes
             std::memmove(buf, begin, remaining);
             return std::pair<size_t, size_t>(remaining, 0);
         }
-        auto length = network_to_host_long(*reinterpret_cast<unsigned int*>(begin));
+        auto length = network_to_host_long(*reinterpret_cast<simple_message_header*>(begin));
         if (length > buffer_size)
         {
             spdlog::info(

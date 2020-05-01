@@ -66,19 +66,27 @@ void scheduler_session::delete_and_disconnect_worker(worker_status* worker)
     _worker_session->disconnect_worker(worker->identifier);
 }
 
-tasks_set::iterator scheduler_session::delete_task(tasks_set::iterator iter)
+template <int N, class Iterator>
+Iterator scheduler_session::delete_task(Iterator iter)
 {
-    auto& tasks_by_id_rid = _tasks.get<tasks_by_identifier_and_room_id>();
+    auto& tasks_by_id_rid = _tasks.get<N>();
     if (iter == tasks_by_id_rid.end())
         return iter;
     auto identifier = iter->identifier;
+    auto room = iter->room_id;
     iter = tasks_by_id_rid.erase(iter);
 
-    auto& worker_iter = _workers.find(identifier);
-    if (worker_iter == _workers.end())
-        return iter;
-    // TODO better rank algorithm
-    worker_iter->second.rank -= 1.0;
+    auto worker_iter = _workers.find(identifier);
+    if (worker_iter != _workers.end())
+    {
+        // TODO better rank algorithm
+        worker_iter->second.rank -= 1.0;
+        worker_iter->second.current_connections--;
+    }
+
+    auto room_iter = _rooms.find(room);
+    if (room_iter != _rooms.end())
+        room_iter->second.current_connections--;
     return iter;
 }
 
@@ -86,13 +94,26 @@ void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id)
 {
     auto& tasks_by_id_rid = _tasks.get<tasks_by_identifier_and_room_id>();
     auto task_iter = tasks_by_id_rid.find(boost::make_tuple(identifier, room_id));
-    delete_task(task_iter);
+    delete_task<tasks_by_identifier_and_room_id>(task_iter);
 }
 
-void scheduler_session::delete_task_unassign(identifier_t identifier, room_id_t room_id)
+void scheduler_session::assign_task(worker_status* worker, room_status* room)
 {
-    delete_task(identifier, room_id);
-    send_unassign(identifier, room_id);
+    send_assign(worker->identifier, room->room_id);
+    auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id);
+    if (inserted)
+    {
+        worker->current_connections++;
+        room->current_connections++;
+    }
+}
+
+int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int rooms)
+{
+    long long sum = 0;
+    for (worker_status* worker : workers_available)
+        sum += worker->max_rooms;
+    return static_cast<int>(sum / rooms);
 }
 
 void scheduler_session::refresh_counts()
@@ -116,7 +137,7 @@ void scheduler_session::check_worker_task_interval()
         if (now - it->last_received <= _worker_interval_threshold)
             ++it;
         else
-            it = delete_task(it);
+            it = delete_task<tasks_by_identifier_and_room_id>(it);
 }
 
 // Run in ZeroMQ Worker thread.
@@ -131,16 +152,70 @@ void scheduler_session::check_all_states()
     refresh_counts();
     // TODO 按时间实现回复worker->rank
 
-    std::vector<worker_status*> workers_available;
+    tasks_by_room_id_t& tasks_by_rid = _tasks.get<tasks_by_room_id>();
+    tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>();
+
+    std::vector<worker_status*> workers_available(_workers.size());
     for (auto& [_, worker] : _workers)
         if (worker.current_connections < worker.max_rooms)
             workers_available.push_back(&worker);
 
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
-    for (auto& [room_id, room] : _rooms)
+    // Delete all inactive rooms
+    for (auto it = _rooms.begin(); it != _rooms.end();)
     {
+        room_status& room = it->second;
+        if (room.active)
+        {
+            ++it;
+            continue;
+        }
+        // disconnect all tasks in room
+        auto [begin, end] = tasks_by_rid.equal_range(it->first);
+        for (auto task_iter = begin; task_iter != end;
+             task_iter = delete_task<tasks_by_room_id>(task_iter))
+            send_unassign(task_iter->identifier, task_iter->room_id);
+        it = _rooms.erase(it);
+    }
 
+    int max_tasks_per_room = calculate_max_workers_per_room(workers_available, _rooms.size());
+    max_tasks_per_room = std::min(1, max_tasks_per_room);
+
+    for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
+    {
+        room_id_t room_id = it->first;
+        room_status& room = it->second;
+
+        auto overkill = room.current_connections - (max_tasks_per_room + 1);
+        auto underkill = max_tasks_per_room - room.current_connections;
+        if (overkill > 0)
+        {
+            // Too much workers on one single room. Unassign some.
+            auto [begin, end] = tasks_by_rid.equal_range(room_id);
+            auto task_iter = begin;
+            for (int i = 0; i < overkill && task_iter != end;
+                 i++, task_iter = delete_task<tasks_by_room_id>(task_iter))
+                send_unassign(task_iter->identifier, task_iter->room_id);
+        }
+        else if (underkill > 0)
+        {
+            // Not enough workers on this room.
+            for (worker_status* worker : workers_available)
+            {
+                if (underkill <= 0)
+                    break;
+                if (worker->current_connections > worker->max_rooms)
+                    continue;
+                assign_task(worker, &room);
+                --underkill;
+            }
+        }
+
+        if (room.current_connections < max_tasks_per_room)
+        {
+            // TODO log error: No enough workers!!
+        }
     }
 }
 

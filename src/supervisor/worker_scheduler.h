@@ -40,6 +40,9 @@ struct room_task
     std::chrono::system_clock::time_point last_received;
     //std::weak_ptr<worker_status> worker; // is use shared_ptr + weak_ptr better than looking up unordered_map?
     //std::weak_ptr<room_status> room;
+
+    room_task(identifier_t identifier, room_id_t room_id)
+        : identifier(identifier), room_id(room_id) {}
 };
 
 struct worker_status
@@ -49,6 +52,8 @@ struct worker_status
 
     bool initialized = false;
     int max_rooms = -1;
+    ///
+    /// Not necessarily real-time!
     int current_connections = 0;
 
     double rank = 0.0;
@@ -65,6 +70,8 @@ struct room_status
     room_id_t room_id;
 
     bool active = true;
+    ///
+    /// Not necessarily real-time!
     int current_connections = 0;
 
     room_status(int room_id)
@@ -91,14 +98,17 @@ using tasks_by_identifier_and_room_id_t = tasks_set::nth_index<tasks_by_identifi
 using tasks_by_identifier_t = tasks_set::nth_index<tasks_by_identifier>::type;
 using tasks_by_room_id_t = tasks_set::nth_index<tasks_by_room_id>::type;
 
+using rooms_map = unordered_map<room_id_t, room_status>;
+using workers_map = unordered_map<identifier_t, worker_status>;
+
 class scheduler_session : std::enable_shared_from_this<scheduler_session>
 {
 private:
     std::shared_ptr<supervisor_server_session> _worker_session;
 
     tasks_set _tasks;
-    unordered_map<room_id_t, room_status> _rooms;
-    unordered_map<identifier_t, worker_status> _workers;
+    rooms_map _rooms;
+    workers_map _workers;
 
     config::config_t _config;
 
@@ -114,10 +124,12 @@ private:
     void delete_worker(worker_status* worker);
     void delete_and_disconnect_worker(worker_status* worker);
 
-    tasks_set::iterator delete_task(tasks_set::iterator iter);
+    template <int N, class Iterator>
+    Iterator delete_task(Iterator iter);
     void delete_task(identifier_t identifier, room_id_t room_id);
-    void delete_task_unassign(identifier_t identifier, room_id_t room_id);
+    void assign_task(worker_status* worker, room_status* room);
 
+    int calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int rooms);
     void refresh_counts();
     void check_worker_task_interval();
     void check_all_states();
