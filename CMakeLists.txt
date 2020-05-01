@@ -10,21 +10,22 @@ conan_check(REQUIRED)
 set(WORKER_EXECUTABLE_NAME
     v_nerve_bilibili_receptor)
 set(WORKER_SOURCE_FILES
-    src/shared/config.cpp
-    src/shared/simple_worker_proto.cpp
-    src/shared/simple_worker_proto_handler.cpp
+    "src/shared/config.cpp"
+    "src/shared/simple_worker_proto.cpp"
+    "src/shared/simple_worker_proto_handler.cpp"
 
-    src/worker/main.cpp
-    src/worker/config.cpp
-    src/worker/bilibili_connection_manager.cpp
-    src/worker/bili_conn.cpp
-    src/worker/bili_packet.cpp
-    src/worker/supervisor_connection.cpp
-    src/worker/supervisor_session.cpp
+    "src/worker/main.cpp"
+    "src/worker/config.cpp"
+    "src/worker/bilibili_connection_manager.cpp"
+    "src/worker/bili_conn.cpp"
+    "src/worker/bili_packet.cpp"
+    "src/worker/supervisor_connection.cpp"
+    "src/worker/supervisor_session.cpp"
 
-    proto/cpp/vNerve/bilibili/live/message.pb.cc
-    proto/cpp/vNerve/bilibili/live/room_message.pb.cc
-    proto/cpp/vNerve/bilibili/live/user_message.pb.cc)
+    "proto/cpp/vNerve/bilibili/live/message.pb.cc"
+    "proto/cpp/vNerve/bilibili/live/room_message.pb.cc"
+    "proto/cpp/vNerve/bilibili/live/user_message.pb.cc"
+)
 
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
@@ -38,17 +39,17 @@ target_include_directories(
 set(SUPERVISOR_EXECUTABLE_NAME
     v_nerve_bilibili_receptor_supervisor)
 set(SUPERVISOR_SOURCE_FILES
-    src/shared/config.cpp
-    src/shared/simple_worker_proto.cpp
-    src/shared/simple_worker_proto_handler.cpp
+    "src/shared/config.cpp"
+    "src/shared/simple_worker_proto.cpp"
+    "src/shared/simple_worker_proto_handler.cpp"
 
-    src/supervisor/main.cpp
-    src/supervisor/config.cpp
-    src/supervisor/room_list_updater.cpp
-    src/supervisor/supervisor_server_session.cpp
-    src/supervisor/simple_worker_proto_generator.cpp
-    src/supervisor/worker_scheduler.cpp
-    )
+    "src/supervisor/main.cpp"
+    "src/supervisor/config.cpp"
+    "src/supervisor/room_list_updater.cpp"
+    "src/supervisor/supervisor_server_session.cpp"
+    "src/supervisor/simple_worker_proto_generator.cpp"
+    "src/supervisor/worker_scheduler.cpp"
+)
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
