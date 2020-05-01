@@ -7,12 +7,14 @@ supervisor_server_session(
     const config::config_t config,
     const supervisor_buffer_handler buffer_handler,
     const supervisor_tick_handler tick_handler,
-    const supervisor_new_worker_handler new_worker_handler)
+    const supervisor_new_worker_handler new_worker_handler,
+    const supervisor_worker_disconnect_handler disconnect_handler)
     : _guard(_context.get_executor()),
       _config(config),
       _buffer_handler(buffer_handler),
       _tick_handler(tick_handler),
       _new_worker_handler(new_worker_handler),
+      _disconnect_handler(disconnect_handler),
       _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
       _acceptor(_context),
       _rand_engine(_rand()),
@@ -63,7 +65,7 @@ void supervisor_server_session::on_accept(
                 std::make_unique<simple_worker_proto_handler>(
                     socket, _read_buffer_size,
                     std::bind(_buffer_handler, identifier, std::placeholders::_1, std::placeholders::_2),
-                    std::bind(&supervisor_server_session::disconnect_worker, shared_from_this(), identifier))));
+                    std::bind(&supervisor_server_session::disconnect_worker, shared_from_this(), identifier, true))));
         _new_worker_handler(identifier);
     }
 
@@ -105,15 +107,19 @@ void supervisor_server_session::
     auto& socket = *(socket_iter->second.first);
     // TODO use a queue!!!!
     boost::asio::async_write(socket, boost::asio::const_buffer(msg, len),
-                             [msg, deleter](const boost::system::error_code&,
+                             [this, msg, deleter, identifier](const boost::system::error_code& ec,
                                    std::size_t) -> void
                              {
                                  // todo log error here?
                                  deleter(msg);
+                                 if (ec.value() == boost::asio::error::operation_aborted)
+                                     return;
+                                 if (ec)
+                                    disconnect_worker(identifier, true);
                              });
 }
 
-void supervisor_server_session::disconnect_worker(identifier_t identifier)
+void supervisor_server_session::disconnect_worker(identifier_t identifier, bool callback)
 {
     auto socket_iter = _sockets.find(identifier);
     if (socket_iter == _sockets.end())
@@ -129,5 +135,7 @@ void supervisor_server_session::disconnect_worker(identifier_t identifier)
     {
         // log
     }
+    if (callback)
+        _disconnect_handler(identifier);
 }
 }

@@ -35,7 +35,8 @@ scheduler_session::scheduler_session(const config::config_t config)
                   std::placeholders::_3),
         std::bind(&scheduler_session::check_all_states, shared_from_this()),
         std::bind(&scheduler_session::handle_new_worker, shared_from_this(),
-                  std::placeholders::_1));
+                  std::placeholders::_1),
+        std::bind(&scheduler_session::handle_worker_disconnect, shared_from_this(), std::placeholders::_1));
 }
 
 scheduler_session::~scheduler_session() {}
@@ -328,6 +329,14 @@ void scheduler_session::handle_buffer(
 
         // TODO send out packet to MQ
     }
+}
+
+void scheduler_session::handle_worker_disconnect(identifier_t identifier)
+{
+    clear_worker_tasks(identifier);
+    auto iter = _workers.find(identifier);
+    if (iter != _workers.end())
+        delete_worker(&(iter->second));
 }
 
 void scheduler_session::send_to_identifier(

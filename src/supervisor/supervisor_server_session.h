@@ -18,6 +18,7 @@ using supervisor_buffer_handler =
 using supervisor_buffer_deleter = std::function<void(unsigned char*)>;
 using supervisor_tick_handler = std::function<void()>;
 using supervisor_new_worker_handler = std::function<void(identifier_t)>;
+using supervisor_worker_disconnect_handler = std::function<void(identifier_t)>;
 
 class supervisor_server_session
     : public std::enable_shared_from_this<supervisor_server_session>
@@ -40,6 +41,7 @@ private:
     supervisor_buffer_handler _buffer_handler;
     supervisor_tick_handler _tick_handler;
     supervisor_new_worker_handler _new_worker_handler;
+    supervisor_worker_disconnect_handler _disconnect_handler;
 
     void start_accept();
     void on_accept(const boost::system::error_code&,
@@ -56,7 +58,8 @@ public:
     supervisor_server_session(config::config_t config,
                               supervisor_buffer_handler,
                               supervisor_tick_handler,
-                              supervisor_new_worker_handler);
+                              supervisor_new_worker_handler,
+                              supervisor_worker_disconnect_handler);
     ~supervisor_server_session();
 
     supervisor_server_session(supervisor_server_session& another) = delete;
@@ -66,6 +69,6 @@ public:
 
     /// @param msg Message to be sent. Taking ownership of msg
     void send_message(identifier_t identifier, unsigned char* msg, size_t len, supervisor_buffer_deleter deleter);
-    void disconnect_worker(identifier_t identifier);
+    void disconnect_worker(identifier_t identifier, bool callback = false);
 };
 }  // namespace vNerve::bilibili::worker_supervisor

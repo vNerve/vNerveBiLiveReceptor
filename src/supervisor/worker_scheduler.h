@@ -172,6 +172,7 @@ private:
     /// Called when a new worker connected but didn't sent WORKER_READY packet yet.
     void handle_new_worker(identifier_t identifier);
     void handle_buffer(identifier_t identifier, unsigned char* payload_data, size_t payload_len);
+    void handle_worker_disconnect(identifier_t identifier);
     void send_to_identifier(identifier_t identifier, unsigned char* payload,
                             size_t size, std::function<void(unsigned char*)> deleter);
 
