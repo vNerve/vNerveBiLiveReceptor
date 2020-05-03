@@ -37,7 +37,6 @@ const size_t PARSE_BUFFER_SIZE = 32 * 1024;
     bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second; \
     bool cmd_##name(const Document& document, RoomMessage* message, Arena* arena)
 
-// TODO: 更好的命名
 #define ASSERT_TRACE(expr)                                                   \
     if (!(expr))                                                             \
     {                                                                        \
@@ -50,16 +49,15 @@ robin_hood::unordered_map<string, function<bool(const Document&, RoomMessage*, A
 
 CMD(DANMU_MSG)
 {
-    // TODO: 非结构错误的错误处理
     // TODO: 需要测试message使用完毕清空时embedded message是否会清空
 
     // 尽管所有UserMessage都需要设置UserInfo
     // 但是不同cmd的数据格式也有所不同
     // 因此设置UserInfo和设置RMQ的topic都只能强耦合在每个处理函数里
 
+    // 以下变量均为 rapidjson::GenericArray ?
     ASSERT_TRACE(document.HasMember("info"))
     ASSERT_TRACE(document["info"].IsArray())
-    // 以下变量均为 rapidjson::GenericArray ?
     // 数组数量不对是结构性错误
     // 但b站很有可能在不改变先前字段的情况下添加字段
     ASSERT_TRACE(document["info"].MemberCount() >= 15);
@@ -70,29 +68,39 @@ CMD(DANMU_MSG)
     ASSERT_TRACE(info[2].IsArray())
     ASSERT_TRACE(info[2].MemberCount() >= 8)
     auto const& user_info = info[2];
+    ASSERT_TRACE(info[3].IsArray())
+    ASSERT_TRACE(info[3].MemberCount() >= 6)
+    auto const& medal_info = info[3];
+    ASSERT_TRACE(info[4].IsArray())
+    ASSERT_TRACE(info[4].MemberCount() >= 4)
+    auto const& user_level = info[4];
     // 以下变量类型均为 T*
     auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
     auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
     auto embedded_danmaku = Arena::CreateMessage<live::DanmakuMessage>(arena);
+    auto embedded_medal_info = Arena::CreateMessage<live::MedalInfo>(arena);
 
     // user_info
-    ASSERT_TRACE(user_info[0].IsUint64())
     // uid
+    ASSERT_TRACE(user_info[0].IsUint64())
     embedded_user_info->set_uid(user_info[0].GetUint64());
-    ASSERT_TRACE(user_info[1].IsString())
     // uname
+    ASSERT_TRACE(user_info[1].IsString())
     embedded_user_info->set_name(user_info[1].GetString(), user_info[1].GetStringLength());
-    ASSERT_TRACE(user_info[2].IsBool())
     // admin
+    ASSERT_TRACE(user_info[2].IsBool())
     embedded_user_info->set_admin(user_info[2].GetBool());
+    // vip&svip->livevip
     ASSERT_TRACE(user_info[3].IsBool() && user_info[4].IsBool())
     // 这两个字段分别是月费/年费会员
     // 都为假时无会员 都为真时报错
     if (user_info[3].GetBool() == user_info[4].GetBool())
     {
         if (user_info[3].GetBool())
-            ;  // 均为真 报错 TODO: 错误处理
-        else   // 均为假 无直播会员
+            // 均为真 报错
+            // 未设置的protobuf字段会被置为默认值
+            SPDLOG_TRACE("[bili_json] both vip and svip are true");
+        else  // 均为假 无直播会员
             embedded_user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
     }
     else
@@ -103,31 +111,59 @@ CMD(DANMU_MSG)
         else  // 月费会员为假 年费会员为真 年费
             embedded_user_info->set_vip_level(live::LiveVipLevel::YEARLY);
     }
+    // regular user
     ASSERT_TRACE(user_info[5].IsNumber())
     if (10000 == user_info[5].GetInt())
-    {
         embedded_user_info->set_regular_user(true);
-    }
     else if (5000 == user_info[5].GetInt())
-    {
         embedded_user_info->set_regular_user(false);
-    }
     else
-    {
-        // TODO: 错误处理
-    }
-    ASSERT_TRACE(user_info[6].IsBool())
+        SPDLOG_TRACE("[bili_json] unknown user rank");
     // phone_verified
+    ASSERT_TRACE(user_info[6].IsBool())
     embedded_user_info->set_phone_verified(user_info[6].GetBool());
+    // user_level
+    ASSERT_TRACE(user_level[0].IsUint())
+    embedded_user_info->set_user_level(user_level[0].GetUint());
+    // user_level_border_color
+    ASSERT_TRACE(user_level[2].IsUint())
+    embedded_user_info->set_user_level(user_level[2].GetUint());
+    // title
+    ASSERT_TRACE(info[5].IsArray())
+    ASSERT_TRACE(info[5][1].IsString())
+    embedded_user_info->set_title(info[5][1].GetString(), info[5][1].GetStringLength());
+    // avatar_url
+    // 弹幕没有头像字段 默认置空
+    // main_vip
+    // 弹幕没有主站vip字段 默认置空
+
+    // medal
+    // medal_name
+    ASSERT_TRACE(medal_info[1].IsString())
+    embedded_medal_info->set_medal_name(medal_info[1].GetString(), medal_info[1].GetStringLength());
+    // medal_level
+    ASSERT_TRACE(medal_info[0].IsUint())
+    embedded_medal_info->set_medal_level(medal_info[0].GetUint());
+    // medal_color
+    ASSERT_TRACE(medal_info[5].IsUint())
+    embedded_medal_info->set_medal_color(medal_info[5].GetUint());
+    // liver user name
+    ASSERT_TRACE(medal_info[2].IsString())
+    embedded_medal_info->set_streamer_uname(medal_info[2].GetString(), medal_info[2].GetStringLength());
+    // liver user id
+    ASSERT_TRACE(medal_info[3].IsUint())  // IsUint()->GetUint64()可疑
+    embedded_medal_info->set_streamer_uid(medal_info[3].GetUint64());
+    // special_medal
+    // medal_info[6] unknown
 
     // danmaku
+    // message
     // 设置字符串的函数会分配额外的string 并且不通过arena分配内存
     // 需要考虑tcmalloc等
     ASSERT_TRACE(info[1].IsString())
-    // message
     embedded_danmaku->set_message(info[1].GetString(), info[1].GetStringLength());
-    ASSERT_TRACE(basic_info[9].IsUint())
     // danmaku type
+    ASSERT_TRACE(basic_info[9].IsUint())
     switch (basic_info[9].GetUint())
     {
     case 0:  // 普通弹幕
@@ -140,11 +176,10 @@ CMD(DANMU_MSG)
         embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
         break;
     default:
-        // TODO: 错误处理
-        break;
+        SPDLOG_TRACE("[bili_json] unknown danmaku lottery type");
     }
-    ASSERT_TRACE(info[7].IsUint())
     // guard level
+    ASSERT_TRACE(info[7].IsUint())
     switch (info[7].GetUint())
     {
     case 0:  // 无舰队
@@ -159,10 +194,10 @@ CMD(DANMU_MSG)
     case 3:  // 舰长
         embedded_danmaku->set_guard_level(live::GuardLevel::LEVEL1);
     default:
-        // TODO: 错误处理
-        break;
+        SPDLOG_TRACE("[bili_json] unknown guard level");
     }
 
+    embedded_user_info->set_allocated_medal(embedded_medal_info);
     embedded_user_message->set_allocated_user(embedded_user_info);
     embedded_user_message->set_allocated_danmaku(embedded_danmaku);
     message->set_allocated_user_message(embedded_user_message);
