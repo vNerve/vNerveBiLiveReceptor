@@ -44,7 +44,6 @@ const size_t PARSE_BUFFER_SIZE = 32 * 1024;
         return false;                                                        \
     }
 
-// 这个库似乎没有提供指定初始化容量的构造函数
 robin_hood::unordered_map<string, function<bool(const Document&, RoomMessage*, Arena*)>> command;
 
 CMD(DANMU_MSG)
@@ -136,6 +135,7 @@ CMD(DANMU_MSG)
     // 弹幕没有头像字段 默认置空
     // main_vip
     // 弹幕没有主站vip字段 默认置空
+    // user_level[1] unknown
 
     // medal
     // medal_name
@@ -150,11 +150,14 @@ CMD(DANMU_MSG)
     // liver user name
     ASSERT_TRACE(medal_info[2].IsString())
     embedded_medal_info->set_streamer_uname(medal_info[2].GetString(), medal_info[2].GetStringLength());
+    // liver room id
+    ASSERT_TRACE(medal_info[3].IsUint())
+    embedded_medal_info->set_streamer_roomid(medal_info[3].GetUint());
     // liver user id
-    ASSERT_TRACE(medal_info[3].IsUint())  // IsUint()->GetUint64()可疑
-    embedded_medal_info->set_streamer_uid(medal_info[3].GetUint64());
+    // 弹幕没有牌子属于的用户的uid的字段
     // special_medal
     // medal_info[6] unknown
+    // medal_info[7] unknown
 
     // danmaku
     // message
@@ -251,6 +254,7 @@ public:
     ///
     /// 用于处理拆开数据包获得的json。
     /// @param buf json的缓冲区，将在函数中复用。
+    /// @param room_id 消息所在的房间号
     /// @return json转换为的protobuf序列化后的buffer。
     const borrowed_message* serialize(char* buf, const unsigned int& room_id)
     {
