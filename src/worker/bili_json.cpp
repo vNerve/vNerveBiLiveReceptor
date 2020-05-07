@@ -209,9 +209,179 @@ CMD(DANMU_MSG)
 
 CMD(SUPER_CHAT_MESSAGE)
 {
-    // TODO: 更好的命名
-    auto const& _data = document["data"];
-    auto const& _user_info = _data["user_info"];
+    // TODO: 补充SC中的字段
+
+    // 以下变量均为 rapidjson::GenericArray ?
+    ASSERT_TRACE(document.HasMember("data"))
+    ASSERT_TRACE(document["data"].IsObject())
+    auto const& data = document["data"];
+    ASSERT_TRACE(data.HasMember("user_info"))
+    ASSERT_TRACE(data["user_info"].IsObject())
+    auto const& user_info = data["user_info"];
+    ASSERT_TRACE(data.HasMember("medal_info"))
+    ASSERT_TRACE(data["medal_info"].IsObject())
+    auto const& medal_info = data["medal_info"];
+    // 以下变量类型均为 T*
+    auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
+    auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
+    auto embedded_medal_info = Arena::CreateMessage<live::MedalInfo>(arena);
+    auto embedded_superchat = Arena::CreateMessage<live::SuperChatMessage>(arena);
+
+    // user_info
+    // uid
+    ASSERT_TRACE(data.HasMember("uid"))
+    ASSERT_TRACE(data["uid"].IsUint64())
+    embedded_user_info->set_uid(data["uid"].GetUint64());
+    // uname
+    ASSERT_TRACE(user_info.HasMember("uname"));
+    ASSERT_TRACE(user_info["uname"].IsString())
+    embedded_user_info->set_name(user_info["uname"].GetString(), user_info["uname"].GetStringLength());
+    // admin
+    ASSERT_TRACE(user_info.HasMember("manager"));
+    ASSERT_TRACE(user_info["manager"].IsBool())
+    embedded_user_info->set_admin(user_info["manager"].GetBool());
+    // vip&svip->livevip
+    ASSERT_TRACE(user_info.HasMember("is_vip")
+                 & user_info.HasMember("is_svip")
+                 & user_info["is_vip"].IsBool()
+                 & user_info["is_svip"].IsBool())
+    // 这两个字段分别是月费/年费会员
+    // 都为假时无会员 都为真时报错
+    if (user_info["is_vip"].GetBool() == user_info["is_svip"].GetBool())
+    {
+        if (user_info["is_vip"].GetBool())
+            // 均为真 报错
+            // 未设置的protobuf字段会被置为默认值
+            SPDLOG_TRACE("[bili_json] both vip and svip are true");
+        else  // 均为假 无直播会员
+            embedded_user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
+    }
+    else
+    {
+        if (user_info["is_vip"].GetBool())
+            // 月费会员为真 年费会员为假 月费
+            embedded_user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
+        else  // 月费会员为假 年费会员为真 年费
+            embedded_user_info->set_vip_level(live::LiveVipLevel::YEARLY);
+    }
+    // regular user
+    // phone_verified
+    // SC似乎没有这些字段
+    // 但是赠送礼物的理应可以视为正常用户 而不是默认值的非正常用户
+    embedded_user_info->set_regular_user(true);
+    embedded_user_info->set_phone_verified(true);
+    ASSERT_TRACE(user_info[6].IsBool())
+    // user_level
+    ASSERT_TRACE(user_info.HasMember("user_level"))
+    ASSERT_TRACE(user_level["user_level"].IsUint())
+    embedded_user_info->set_user_level(user_level["user_level"].GetUint());
+    // user_level_border_color
+    // SC似乎没有这个字段
+    // title
+    // 值得注意的是 弹幕和礼物的title默认值是空字符串""
+    // 但SC的title默认值是"0"
+    // 需要考虑是否进行处理
+    ASSERT_TRACE(user_info.HasMember("title"))
+    ASSERT_TRACE(user_info["title"].IsString())
+    embedded_user_info->set_title(user_info["title"].GetString(), user_info["title"].GetStringLength());
+    ASSERT_TRACE(user_info.HasMember("is_main_vip"))
+    // avatar_url
+    ASSERT_TRACE(user_info.HasMember("face"))
+    ASSERT_TRACE(user_info["face"].IsString())
+    embedded_user_info->set_avatar_url(user_info["face"].GetString(), user_info["face"].GetStringLength());
+    // user_info["face_frame"] 舰长框
+    // 没有对应的字段
+    // main_vip
+    ASSERT_TRACE(user_info["is_main_vip"].IsBool())
+    embedded_user_info->set_main_vip(user_info["is_main_vip"].GetBool());
+
+    // medal
+    // medal_name
+    ASSERT_TRACE(medal_info.HasMember("medal_name"))
+    ASSERT_TRACE(medal_info["medal_name"].IsString())
+    embedded_medal_info->set_medal_name(medal_info["medal_name"].GetString(), medal_info["medal_name"].GetStringLength());
+    // medal_level
+    ASSERT_TRACE(medal_info.HasMember("medal_level"))
+    ASSERT_TRACE(medal_info["medal_level"].IsUint())
+    embedded_medal_info->set_medal_level(medal_info["medal_level"].GetUint());
+    // medal_color
+    ASSERT_TRACE(medal_info.HasMember("medal_color"))
+    ASSERT_TRACE(medal_info["medal_color"].IsUint())
+    embedded_medal_info->set_medal_color(medal_info["medal_color"].GetUint());
+    // liver user id
+    ASSERT_TRACE(medal_info.HasMember("target_id"))
+    ASSERT_TRACE(medal_info["target_id"].IsUint())  // IsUint->Uint64存疑
+    embedded_medal_info->set_streamer_uid(medal_info["target_id"].GetUint64());
+    // liver user name
+    ASSERT_TRACE(medal_info.HasMember("anchor_uname"))
+    ASSERT_TRACE(medal_info["anchor_uname"].IsString())
+    embedded_medal_info->set_streamer_uname(medal_info["anchor_uname"].GetString(), medal_info["anchor_uname"].GetStringLength());
+    // liver room id
+    ASSERT_TRACE(medal_info.HasMember("anchor_roomid"))
+    ASSERT_TRACE(medal_info["anchor_roomid"].IsUint())
+    embedded_medal_info->set_streamer_roomid(medal_info["anchor_roomid"].GetUint());
+    // special_medal
+    // medal_info[6] unknown
+    // medal_info[7] unknown
+
+    // superchat
+    // id
+    ASSERT_TRACE(data.HasMember("id"))
+    ASSERT_TRACE(data["id"].IsUint());
+    embedded_superchat->set_id(data["id"].GetUint());
+    // message
+    ASSERT_TRACE(data.HasMember("message"))
+    ASSERT_TRACE(data["message"].IsString())
+    embedded_superchat->set_message(data["message"].GetString(), data["message"].GetStringLength());
+    // price
+    ASSERT_TRACE(data.HasMember("price"))
+    ASSERT_TRACE(data["price"].IsUint())
+    embedded_superchat->set_price(::google::protobuf::uint32 value)(data["price"].GetUint());
+    // token
+    ASSERT_TRACE(data.HasMember("token"))
+    ASSERT_TRACE(data["token"].IsString())
+    embedded_superchat->set_token(data["token"].GetString(), data["token"].GetStringLength());
+    // lasting_time_sec
+    ASSERT_TRACE(data.HasMember("time"))
+    ASSERT_TRACE(data["time"].IsUint())
+    embedded_superchat->set_lasting_time_sec(data["time"].Get);
+    // start_time
+    ASSERT_TRACE(data.HasMember("start_time"))
+    ASSERT_TRACE(data["start_time"].IsUint64())
+    embedded_superchat->set_start_time(data["start_time"].GetUint64());
+    // end_time
+    ASSERT_TRACE(data.HasMember("end_time"))
+    ASSERT_TRACE(data["end_time"].IsUint64())
+    embedded_superchat->set_end_time(data["end_time"].GetUint64());
+
+    embedded_user_info->set_allocated_medal(embedded_medal_info);
+    embedded_user_message->set_allocated_user(embedded_user_info);
+    embedded_user_message->set_allocated_super_chat(embedded_superchat);
+    message->set_allocated_user_message(embedded_user_message);
+
+    return true;
+}
+
+CMD(SEND_GIFT)
+{
+    // 以下变量均为 rapidjson::GenericArray ?
+    ASSERT_TRACE(document.HasMember("data"))
+    ASSERT_TRACE(document["data"].IsObject())
+    auto const& data = document["data"];
+    // 以下变量类型均为 T*
+    auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
+    auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
+    auto embedded_gift = Arena::CreateMessage<live::GiftMessage>(arena);
+    // 礼物似乎没有牌子信息
+    // auto embedded_medal_info = Arena::CreateMessage<live::MedalInfo>(arena);
+
+    // TODO
+
+    // 礼物似乎没有牌子信息
+    // embedded_user_info->set_allocated_medal(embedded_medal_info);
+    embedded_user_message->set_allocated_user(embedded_user_info);
+    embedded_user_message->set_allocated_gift(embedded_gift);
+    message->set_allocated_user_message(embedded_user_message);
     return true;
 }
 
