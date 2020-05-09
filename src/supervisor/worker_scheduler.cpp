@@ -8,6 +8,8 @@
 #include <boost/range/adaptors.hpp>
 #include <spdlog/spdlog.h>
 
+#define LOG_PREFIX "[w_sched] "
+
 namespace vNerve::bilibili::worker_supervisor
 {
 supervisor_buffer_deleter unsigned_char_array_deleter = [](unsigned char* buf) -> void
@@ -47,12 +49,14 @@ scheduler_session::~scheduler_session()
 
 void scheduler_session::clear_worker_tasks(identifier_t identifier)
 {
+    spdlog::debug(LOG_PREFIX "[{:016x}] Clearing tasks from worker", identifier);
     auto& tasks_by_id = _tasks.get<tasks_by_identifier>();
     tasks_by_id.erase(identifier);
 }
 
 void scheduler_session::reset_worker(worker_status* worker)
 {
+    spdlog::info(LOG_PREFIX "[{:016x}] Resetting worker.", worker->identifier);
     clear_worker_tasks(worker->identifier);
     worker->initialized = false;
     worker->current_connections = 0;
@@ -63,12 +67,14 @@ void scheduler_session::reset_worker(worker_status* worker)
 
 void scheduler_session::delete_worker(worker_status* worker)
 {
+    spdlog::debug(LOG_PREFIX "[{:016x}] Deleting worker.", worker->identifier);
     reset_worker(worker);
     _workers.erase(worker->identifier);
 }
 
 void scheduler_session::delete_and_disconnect_worker(worker_status* worker)
 {
+    spdlog::info(LOG_PREFIX "[{:016x}] Disconnecting worker.", worker->identifier);
     delete_worker(worker);
     _worker_session->disconnect_worker(worker->identifier);
 }
@@ -78,9 +84,13 @@ Iterator scheduler_session::delete_task(Iterator iter, const bool desc_rank)
 {
     auto& tasks_by_id_rid = _tasks.get<N>();
     if (iter == tasks_by_id_rid.end())
+    {
+        SPDLOG_TRACE(LOG_PREFIX "Failed to delete task: Not found.");
         return iter;
+    }
     auto identifier = iter->identifier;
     auto room = iter->room_id;
+    spdlog::debug(LOG_PREFIX "[{0:016x}] Deleting task to room {1}. Desc_rank: {2}", identifier, room, desc_rank);
     iter = tasks_by_id_rid.erase(iter);
 
     auto worker_iter = _workers.find(identifier);
@@ -92,6 +102,7 @@ Iterator scheduler_session::delete_task(Iterator iter, const bool desc_rank)
                 worker_iter->second.allow_new_task_after = std::chrono::system_clock::now() + std::chrono::minutes(10);
             else
                 worker_iter->second.allow_new_task_after += _worker_penalty; // acc
+            SPDLOG_TRACE(LOG_PREFIX "Updating rank of worker: {}", worker_iter->second.allow_new_task_after.count());
         }
         worker_iter->second.current_connections--;
     }
@@ -104,6 +115,7 @@ Iterator scheduler_session::delete_task(Iterator iter, const bool desc_rank)
 
 void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, bool desc_rank)
 {
+    SPDLOG_TRACE(LOG_PREFIX "Trying to find and delete task <{0:016x}, {1}>", identifier, room_id);
     auto& tasks_by_id_rid = _tasks.get<tasks_by_identifier_and_room_id>();
     auto task_iter = tasks_by_id_rid.find(boost::make_tuple(identifier, room_id));
     delete_task<tasks_by_identifier_and_room_id>(task_iter, desc_rank);
@@ -111,12 +123,13 @@ void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, 
 
 void scheduler_session::assign_task(worker_status* worker, room_status* room)
 {
-
+    SPDLOG_TRACE(LOG_PREFIX "Trying to assign task <{0:016x},{1}>", worker->identifier, room->room_id);
     auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id);
     if (!inserted) return;
     send_assign(worker->identifier, room->room_id);
     worker->current_connections++;
     room->current_connections++;
+    spdlog::debug(LOG_PREFIX "[{0:016x}] Assigning task to room {1}. N_wk={2}, N_rm={3}", worker->identifier, room->room_id, worker->current_connections, room->current_connections);
 }
 
 int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count)
@@ -143,12 +156,32 @@ void scheduler_session::check_worker_task_interval()
     auto now = std::chrono::system_clock::now();
     for (auto& [_, worker] : _workers)
         if (now - worker.last_received > _worker_interval_threshold)
+        {
+            spdlog::warn(LOG_PREFIX "[{0:016x}] Worker exceeding max interval, disconnecting!", worker.current_connections);
             delete_and_disconnect_worker(&worker);
+        }
     for (auto it = _tasks.begin(); it != _tasks.end();)
         if (now - it->last_received <= _worker_interval_threshold)
             ++it;
         else
+        {
             it = delete_task<tasks_by_identifier_and_room_id>(it);
+            spdlog::warn(LOG_PREFIX "[<{0:016x},{1}>] Task exceeding max interval, unassigning!", it->identifier, it->room_id);
+        }
+}
+
+void scheduler_session::send_assign(identifier_t identifier, room_id_t room_id)
+{
+    SPDLOG_TRACE(LOG_PREFIX "[<{0:016x},{1}>] Sending assign packet.", identifier, room_id);
+    auto [buf, siz] = generate_assign_packet(room_id);  // regular unsigned char[]
+    send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
+}
+
+void scheduler_session::send_unassign(identifier_t identifier, room_id_t room_id)
+{
+    SPDLOG_TRACE(LOG_PREFIX "[<{0:016x},{1}>] Sending unassign packet.", identifier, room_id);
+    auto [buf, siz] = generate_unassign_packet(room_id);  // regular unsigned char[]
+    send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
 void scheduler_session::check_all_states()
@@ -159,6 +192,8 @@ void scheduler_session::check_all_states()
     if (current_time - _last_checked < _min_check_interval)
         return;
     _last_checked = current_time;
+
+    spdlog::debug(LOG_PREFIX "Triggering check.");
 
     // 检查最大间隔
     check_worker_task_interval();
@@ -177,6 +212,11 @@ void scheduler_session::check_all_states()
             workers_available.push_back(&worker);
             worker.punished = false;
         }
+    if (workers_available.empty())
+    {
+        spdlog::error(LOG_PREFIX "No available worker!");
+        return;
+    }
     // 按照权值算法排序 worker
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
@@ -189,6 +229,7 @@ void scheduler_session::check_all_states()
             ++it;
             continue;
         }
+        spdlog::info(LOG_PREFIX "Deleting inactive room {0}", room.room_id);
         // disconnect all tasks in room
         auto [begin, end] = tasks_by_rid.equal_range(it->first);
         for (auto task_iter = begin; task_iter != end;
@@ -198,10 +239,12 @@ void scheduler_session::check_all_states()
     }
 
     int max_tasks_per_room = calculate_max_workers_per_room(workers_available, _rooms.size());
-    max_tasks_per_room = std::min(1, max_tasks_per_room); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
+    max_tasks_per_room = std::min(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
+    SPDLOG_TRACE(LOG_PREFIX "Use max t/rm: {}", max_tasks_per_room);
 
     for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
     {
+        SPDLOG_TRACE(LOG_PREFIX "Handling room {0}", it->first);
         room_id_t room_id = it->first;
         room_status& room = it->second;
 
@@ -210,6 +253,7 @@ void scheduler_session::check_all_states()
         if (overkill > 0)
         {
             // Too much workers on one single room. Unassign some.
+            spdlog::debug(LOG_PREFIX "Too much workers on room {0}({2}). Try to unassign {1} rooms.", room_id, overkill, room.current_connections);
             auto [begin, end] = tasks_by_rid.equal_range(room_id);
             auto task_iter = begin;
             for (int i = 0; i < overkill && task_iter != end;
@@ -219,34 +263,21 @@ void scheduler_session::check_all_states()
         else if (underkill > 0)
         {
             // Not enough workers on this room.
+            spdlog::debug(LOG_PREFIX "Not enough workers on room {0}({2}). Try to assign {1} rooms.", room_id, underkill, room.current_connections);
             for (worker_status* worker : workers_available)
             {
                 if (underkill <= 0)
                     break;
                 if (worker->current_connections > worker->max_rooms)
                     continue;
-                assign_task(worker, &room);
+                assign_task(worker, &room); // Will not actually assign if the task exists, so safe.
                 --underkill;
             }
         }
 
-        if (room.current_connections < max_tasks_per_room)
-        {
-            // TODO log error: No enough workers!!
-        }
+        if (room.current_connections < 1)
+            spdlog::warn(LOG_PREFIX "Room {0} can't get any worker!", room_id);
     }
-}
-
-void scheduler_session::send_assign(identifier_t identifier, room_id_t room_id)
-{
-    auto [buf, siz] = generate_assign_packet(room_id); // regular unsigned char[]
-    send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
-}
-
-void scheduler_session::send_unassign(identifier_t identifier, room_id_t room_id)
-{
-    auto [buf, siz] = generate_unassign_packet(room_id); // regular unsigned char[]
-    send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
 void scheduler_session::handle_new_worker(
@@ -257,10 +288,12 @@ void scheduler_session::handle_new_worker(
     worker_status* worker_ptr = worker_iter != _workers.end()
                                     ? &(worker_iter->second)
                                     : nullptr;
+    spdlog::info(LOG_PREFIX "[{0:016x}] New worker connected.", identifier);
     if (worker_ptr != nullptr)
     {
         // worker already existing. Reset the worker.
         //clear_worker(*worker_ptr);
+        reset_worker(worker_ptr);
         worker_ptr->last_received = current_time;
         return;
     }
@@ -284,6 +317,8 @@ void scheduler_session::handle_buffer(
     room_id_t room_id = boost::asio::detail::socket_ops::network_to_host_long(
         *reinterpret_cast<simple_message_header*>(payload_data + 1)); // data[1,2,3,4]
 
+    SPDLOG_TRACE(LOG_PREFIX "[{0:016x}] Worker message: op_code={1}, rid/rmax={2}", identifier, op_code, room_id);
+
     auto worker_iter = _workers.find(identifier);
     worker_status* worker_ptr = worker_iter != _workers.end()
                                     ? &(worker_iter->second)
@@ -291,6 +326,7 @@ void scheduler_session::handle_buffer(
 
     if (worker_ptr == nullptr)
     {
+        spdlog::warn(LOG_PREFIX "[{0:016x}] Worker status not found with this identifier. Disconnecting.", identifier);
         clear_worker_tasks(identifier);
         _worker_session->disconnect_worker(identifier);
         return;
@@ -304,6 +340,7 @@ void scheduler_session::handle_buffer(
     {
         // see simple_worker_proto.h
         auto max_rooms = room_id; // max_rooms is in the place of room_id
+        spdlog::info(LOG_PREFIX "[{0:016x}] Worker ready. rmax={1}", identifier, max_rooms);
         // Reset worker.
         reset_worker(worker_ptr);
         worker_ptr->initialized = true;
@@ -312,6 +349,7 @@ void scheduler_session::handle_buffer(
     }
     else if (op_code == room_failed_code)
     {
+        spdlog::warn(LOG_PREFIX "[<{0:016x},{1}>] Task failed.", identifier, room_id);
         delete_task(identifier, room_id);
         check_all_states();
     }
@@ -319,7 +357,7 @@ void scheduler_session::handle_buffer(
     {
         if (payload_len < 33) // 1 + 4 + 4 + 24
         {
-            SPDLOG_TRACE("[w_sched] Malformed data packet: wrong payload len {}!", payload_len);
+            SPDLOG_TRACE(LOG_PREFIX "Malformed data packet: wrong payload len {}!=33!", payload_len);
             return;
         }
 
@@ -335,6 +373,7 @@ void scheduler_session::handle_buffer(
         auto crc32 = *reinterpret_cast<unsigned long*>(payload_data + 5);
         auto routing_key = reinterpret_cast<char*>(payload_data) + 9;
         auto routing_key_len = strnlen(routing_key, routing_key_max_size);
+        spdlog::debug(LOG_PREFIX "[<{0:016x},{1}>] Received data packet. payload_len={2}, CRC32={3}", identifier, room_id, payload_len - 33, crc32);
 
         // TODO send out packet to MQ
     }
@@ -342,6 +381,7 @@ void scheduler_session::handle_buffer(
 
 void scheduler_session::handle_worker_disconnect(identifier_t identifier)
 {
+    spdlog::warn(LOG_PREFIX "[{0:016x}] Worker disconnected. Deleting.", identifier);
     clear_worker_tasks(identifier);
     auto iter = _workers.find(identifier);
     if (iter != _workers.end())
