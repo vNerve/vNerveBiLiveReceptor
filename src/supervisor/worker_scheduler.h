@@ -56,7 +56,12 @@ struct worker_status
     /// Not necessarily real-time!
     int current_connections = 0;
 
-    double rank = 0.0;
+    ///
+    /// 用于断线惩罚。
+    std::chrono::system_clock::time_point allow_new_task_after;
+    ///
+    /// 用于判断是将断线惩罚累加到 allow_new_task_after 还是从当前时间开始计算。
+    bool punished = false;
 
     worker_status(identifier_t identifier, std::chrono::system_clock::time_point first_received)
         : identifier(identifier), last_received(first_received)
@@ -115,6 +120,7 @@ private:
     std::chrono::system_clock::time_point _last_checked;
     std::chrono::system_clock::duration _min_check_interval;
     std::chrono::system_clock::duration _worker_interval_threshold;
+    std::chrono::system_clock::duration _worker_penalty;
 
     ///
     /// 清空属于该 worker 的所有任务。\n
@@ -151,7 +157,7 @@ private:
 
     ///
     /// Calculate the maximum count of workers connecting to one single room.
-    int calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int rooms);
+    static int calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count);
     ///
     /// 强制更新 worker 和 room 的连接计数器
     void refresh_counts();

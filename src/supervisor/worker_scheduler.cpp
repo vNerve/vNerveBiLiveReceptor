@@ -6,17 +6,18 @@
 
 #include <algorithm>
 #include <boost/range/adaptors.hpp>
+#include <spdlog/spdlog.h>
 
 namespace vNerve::bilibili::worker_supervisor
 {
-supervisor_buffer_deleter unsigned_char_array_deleter = [](unsigned char* buf) -> void {
+supervisor_buffer_deleter unsigned_char_array_deleter = [](unsigned char* buf) -> void
+{
     delete[] buf;
 };
 
 bool compare_worker(const worker_status* lhs, const worker_status* rhs)
 {
-    // TODO weight algorithm base on rank and remaining room;
-    return lhs->rank * (lhs->max_rooms - lhs->current_connections) > rhs->rank * (rhs->max_rooms - rhs->current_connections);
+    return lhs->max_rooms - lhs->current_connections > rhs->max_rooms - rhs->current_connections;
 }
 
 // =============================== scheduler_session ===============================
@@ -26,7 +27,8 @@ scheduler_session::scheduler_session(const config::config_t config)
       _min_check_interval(
           std::chrono::milliseconds(
               (*config)["min-check-interval-ms"].as<int>())),
-      _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>()))
+      _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>())),
+      _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>()))
 {
     _worker_session = std::make_shared<supervisor_server_session>(
         config,
@@ -39,7 +41,9 @@ scheduler_session::scheduler_session(const config::config_t config)
         std::bind(&scheduler_session::handle_worker_disconnect, shared_from_this(), std::placeholders::_1));
 }
 
-scheduler_session::~scheduler_session() {}
+scheduler_session::~scheduler_session()
+{
+}
 
 void scheduler_session::clear_worker_tasks(identifier_t identifier)
 {
@@ -53,6 +57,8 @@ void scheduler_session::reset_worker(worker_status* worker)
     worker->initialized = false;
     worker->current_connections = 0;
     worker->max_rooms = -1;
+    worker->allow_new_task_after = std::chrono::system_clock::now();
+    worker->punished = false;
 }
 
 void scheduler_session::delete_worker(worker_status* worker)
@@ -68,7 +74,7 @@ void scheduler_session::delete_and_disconnect_worker(worker_status* worker)
 }
 
 template <int N, class Iterator>
-Iterator scheduler_session::delete_task(Iterator iter, bool desc_rank)
+Iterator scheduler_session::delete_task(Iterator iter, const bool desc_rank)
 {
     auto& tasks_by_id_rid = _tasks.get<N>();
     if (iter == tasks_by_id_rid.end())
@@ -80,9 +86,13 @@ Iterator scheduler_session::delete_task(Iterator iter, bool desc_rank)
     auto worker_iter = _workers.find(identifier);
     if (worker_iter != _workers.end())
     {
-        // TODO better rank algorithm
         if (desc_rank)
-            worker_iter->second.rank -= 1.0;
+        {
+            if (!worker_iter->second.punished)
+                worker_iter->second.allow_new_task_after = std::chrono::system_clock::now() + std::chrono::minutes(10);
+            else
+                worker_iter->second.allow_new_task_after += _worker_penalty; // acc
+        }
         worker_iter->second.current_connections--;
     }
 
@@ -101,21 +111,20 @@ void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, 
 
 void scheduler_session::assign_task(worker_status* worker, room_status* room)
 {
-    send_assign(worker->identifier, room->room_id);
+
     auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id);
-    if (inserted)
-    {
-        worker->current_connections++;
-        room->current_connections++;
-    }
+    if (!inserted) return;
+    send_assign(worker->identifier, room->room_id);
+    worker->current_connections++;
+    room->current_connections++;
 }
 
-int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int rooms)
+int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count)
 {
     long long sum = 0;
     for (worker_status* worker : workers_available)
         sum += worker->max_rooms;
-    return static_cast<int>(sum / rooms); // TODO 这里要不要乘一个小于1的常数？避免100%负载
+    return static_cast<int>(sum / room_count);
 }
 
 void scheduler_session::refresh_counts()
@@ -155,7 +164,6 @@ void scheduler_session::check_all_states()
     check_worker_task_interval();
     // 刷新所有计数器
     refresh_counts();
-    // TODO 按时间实现回复worker->rank
 
     tasks_by_room_id_t& tasks_by_rid = _tasks.get<tasks_by_room_id>();
     // tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>(); // unused
@@ -163,8 +171,12 @@ void scheduler_session::check_all_states()
     // 先找出所有没有满掉的 worker
     std::vector<worker_status*> workers_available(_workers.size());
     for (auto& [_, worker] : _workers)
-        if (worker.current_connections < worker.max_rooms)
+        if (worker.current_connections < worker.max_rooms
+            && worker.allow_new_task_after < current_time)
+        {
             workers_available.push_back(&worker);
+            worker.punished = false;
+        }
     // 按照权值算法排序 worker
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
@@ -194,7 +206,7 @@ void scheduler_session::check_all_states()
         room_status& room = it->second;
 
         auto overkill = room.current_connections - (max_tasks_per_room + 1); // 房间的 worker 太多了
-        auto underkill = max_tasks_per_room - room.current_connections; // 房间的 worker 不足
+        auto underkill = max_tasks_per_room - room.current_connections;      // 房间的 worker 不足
         if (overkill > 0)
         {
             // Too much workers on one single room. Unassign some.
@@ -227,13 +239,13 @@ void scheduler_session::check_all_states()
 
 void scheduler_session::send_assign(identifier_t identifier, room_id_t room_id)
 {
-    auto [buf, siz] = generate_assign_packet(room_id);  // regular unsigned char[]
+    auto [buf, siz] = generate_assign_packet(room_id); // regular unsigned char[]
     send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
 void scheduler_session::send_unassign(identifier_t identifier, room_id_t room_id)
 {
-    auto [buf, siz] = generate_unassign_packet(room_id);  // regular unsigned char[]
+    auto [buf, siz] = generate_unassign_packet(room_id); // regular unsigned char[]
     send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
@@ -243,8 +255,8 @@ void scheduler_session::handle_new_worker(
     auto current_time = std::chrono::system_clock::now();
     auto worker_iter = _workers.find(identifier);
     worker_status* worker_ptr = worker_iter != _workers.end()
-                          ? &(worker_iter->second)
-                          : nullptr;
+                                    ? &(worker_iter->second)
+                                    : nullptr;
     if (worker_ptr != nullptr)
     {
         // worker already existing. Reset the worker.
@@ -267,18 +279,15 @@ void scheduler_session::handle_buffer(
     size_t payload_len)
 {
     if (payload_len < 5)
-    {
-        //todo log?
-        return;
-    }
-    auto op_code = payload_data[0];  // data[0]
+        return; // Malformed
+    auto op_code = payload_data[0]; // data[0]
     room_id_t room_id = boost::asio::detail::socket_ops::network_to_host_long(
-        *reinterpret_cast<simple_message_header*>(payload_data + 1));  // data[1,2,3,4]
+        *reinterpret_cast<simple_message_header*>(payload_data + 1)); // data[1,2,3,4]
 
     auto worker_iter = _workers.find(identifier);
     worker_status* worker_ptr = worker_iter != _workers.end()
-                          ? &(worker_iter->second)
-                          : nullptr;
+                                    ? &(worker_iter->second)
+                                    : nullptr;
 
     if (worker_ptr == nullptr)
     {
@@ -294,7 +303,7 @@ void scheduler_session::handle_buffer(
     if (op_code == worker_ready_code)
     {
         // see simple_worker_proto.h
-        auto max_rooms = room_id;  // max_rooms is in the place of room_id
+        auto max_rooms = room_id; // max_rooms is in the place of room_id
         // Reset worker.
         reset_worker(worker_ptr);
         worker_ptr->initialized = true;
@@ -308,19 +317,19 @@ void scheduler_session::handle_buffer(
     }
     else if (op_code == worker_data_code)
     {
-        if (payload_len < 33)  // 1 + 4 + 4 + 24
+        if (payload_len < 33) // 1 + 4 + 4 + 24
         {
+            SPDLOG_TRACE("[w_sched] Malformed data packet: wrong payload len {}!", payload_len);
             return;
-            // TODO:Log
         }
-        // TODO update some "weight" of the worker
 
         tasks_by_identifier_and_room_id_t& idx = _tasks.get<0>();
         auto task_iter = idx.find(boost::make_tuple(identifier, room_id));
         if (task_iter == idx.end())
             return;
 
-        idx.modify(task_iter, [current_time](room_task& it) -> void {
+        idx.modify(task_iter, [current_time](room_task& it) -> void
+        {
             it.last_received = current_time;
         });
         auto crc32 = *reinterpret_cast<unsigned long*>(payload_data + 5);
