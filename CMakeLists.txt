@@ -49,12 +49,13 @@ set(SUPERVISOR_SOURCE_FILES
     "src/supervisor/supervisor_server_session.cpp"
     "src/supervisor/simple_worker_proto_generator.cpp"
     "src/supervisor/worker_scheduler.cpp"
+    "src/supervisor/amqp_client.cpp"
 )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
     vendor
-    src/suprtvisor
+    src/supervisor
     src/shared
     proto/cpp)
 
@@ -65,6 +66,7 @@ conan_cmake_run(REQUIRES
                     "rapidjson/1.1.0"
                     "protobuf/3.11.4@charliejiang/stable"
                     "cpp-httplib/0.5.7"
+                    "amqp-cpp/4.1.6"
                 BASIC_SETUP CMAKE_TARGETS
                 ENV "CONAN_CMAKE_GENERATOR=Ninja"
                 BUILD missing)
@@ -86,7 +88,9 @@ target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::spdlog
                         CONAN_PKG::protobuf
                         CONAN_PKG::rapidjson
-                        CONAN_PKG::cpp-httplib)
+                        CONAN_PKG::cpp-httplib
+                        CONAN_PKG::amqp-cpp
+                        )
 
 if (WIN32)
     target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
