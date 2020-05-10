@@ -67,5 +67,7 @@ public:
         _heartbeat_interval_sec = other._heartbeat_interval_sec;
         return *this;
     }
+
+    void close(bool failed = false) const;
 };
 }  // namespace vNerve::bilibili

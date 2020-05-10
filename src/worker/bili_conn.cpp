@@ -35,23 +35,13 @@ vNerve::bilibili::bilibili_connection::bilibili_connection(
         buffer, boost::bind(&bilibili_connection::on_join_room_sent, this,
                             boost::asio::placeholders::error,
                             boost::asio::placeholders::bytes_transferred, str));
+    // Don't need a sending queue
+    // Because the sending frequency is low.
 }
 
 vNerve::bilibili::bilibili_connection::~bilibili_connection()
 {
-    try
-    {
-        _socket->shutdown(boost::asio::socket_base::shutdown_both);
-        _socket->cancel();
-        _socket->close();
-        _heartbeat_timer->cancel();
-    }
-    catch (boost::system::system_error& ex)
-    {
-        spdlog::warn(
-            "[conn] [room={}] Failed shutting down connection! err:{}:{}:{}",
-            ex.code().value(), ex.code().message(), ex.what());
-    }
+    close(false);
 }
 
 void vNerve::bilibili::bilibili_connection::reschedule_timer()
@@ -79,6 +69,19 @@ void vNerve::bilibili::bilibili_connection::start_read()
                     boost::asio::placeholders::bytes_transferred));
 }
 
+void vNerve::bilibili::bilibili_connection::close(const bool failed) const
+{
+    boost::system::error_code ec;
+    _socket->shutdown(boost::asio::socket_base::shutdown_both, ec);
+    _socket->cancel(ec);
+    _socket->close(ec);
+    _heartbeat_timer->cancel(ec);
+
+    if (failed)
+        _session->on_room_failed(_room_id);
+    _session->on_room_closed(_room_id);
+}
+
 void vNerve::bilibili::bilibili_connection::on_join_room_sent(
     const boost::system::error_code& err, const size_t transferred,
     std::string* buf)
@@ -92,10 +95,10 @@ void vNerve::bilibili::bilibili_connection::on_join_room_sent(
                           _room_id);
             return;  // closing socket.
         }
-        // TODO error handling
         spdlog::warn(
             "[conn] [room={}] Failed sending handshake packet! err:{}: {}",
             _room_id, err.value(), err.message());
+        close(true);
     }
 
     spdlog::debug(
@@ -115,10 +118,10 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_sent(
                           _room_id);
             return;  // closing socket.
         }
-        // TODO error handling
         spdlog::warn(
             "[conn] [room={}] Failed sending heartbeat packet! err:{}: {}",
             _room_id, err.value(), err.message());
+        close(true);
     }
     // nothing to do.
     spdlog::debug(
@@ -165,15 +168,26 @@ void vNerve::bilibili::bilibili_connection::on_receive(
                           _room_id);
             return;  // closing socket.
         }
-        // TODO error handling
+        spdlog::warn("[conn] [room={}] Error in async recv! err:{}: {}",
+                     _room_id, err.value(), err.message());
+        close(true);
     }
 
     spdlog::debug("[conn] [room={}] Received data block(len={})", _room_id,
                   transferred);
-    auto [new_offset, new_skipping_bytes] =
-        handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size,
-                      _skipping_bytes);
-    _read_buffer_offset = new_offset;
-    _skipping_bytes = new_skipping_bytes;
+    try
+    {
+        auto [new_offset, new_skipping_bytes] =
+            handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size,
+                          _skipping_bytes, std::bind(&bilibili_connection_manager::on_room_data, _session, _room_id, std::placeholders::_1));
+        _read_buffer_offset = new_offset;
+        _skipping_bytes = new_skipping_bytes;
+    }
+    catch (malformed_packet&)
+    {
+        close(true);
+        return;
+    }
+
     start_read();
 }

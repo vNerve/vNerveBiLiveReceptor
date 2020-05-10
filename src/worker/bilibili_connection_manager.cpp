@@ -7,7 +7,9 @@
 #include <spdlog/spdlog.h>
 
 vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const config::config_t options)
-    : _guard(_context.get_executor()),
+    : _context((*_options)["threads"].as<int>()),
+      _guard(_context.get_executor()),
+      _max_connections((*_options)["max-rooms"].as<int>()),
       _resolver(_context),
       _options(options),
       _shared_heartbeat_buffer_str(generate_heartbeat_packet()),
@@ -28,7 +30,6 @@ vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const
 
 vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
 {
-    // TODO Exception handling
     try
     {
         _context.stop();
@@ -66,6 +67,19 @@ void vNerve::bilibili::bilibili_connection_manager::open_connection(const int ro
                     boost::asio::placeholders::iterator, room_id));
 }
 
+void vNerve::bilibili::bilibili_connection_manager::close_connection(int room_id)
+{
+    spdlog::info("[session] Disconnecting room {}", room_id);
+    auto iter = _connections.find(room_id);
+    if (iter == _connections.end())
+    {
+        spdlog::debug("[session] Room {} not found.", room_id);
+        return;
+    }
+
+    iter->second.close();
+}
+
 void vNerve::bilibili::bilibili_connection_manager::on_resolved(
     const boost::system::error_code& err,
     const boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
@@ -80,10 +94,10 @@ void vNerve::bilibili::bilibili_connection_manager::on_resolved(
                 room_id);
             return;
         }
-        // TODO error handling
         spdlog::warn(
             "[session] Failed resolving DN connecting to room {}! err: {}:{}",
             room_id, err.value(), err.message());
+        on_room_failed(room_id);
         return;
     }
 
@@ -94,18 +108,15 @@ void vNerve::bilibili::bilibili_connection_manager::on_resolved(
     async_connect(
         *socket, endpoint_iterator,
         boost::bind(&bilibili_connection_manager::on_connected, this,
-                    boost::asio::placeholders::error,
-                    boost::asio::placeholders::iterator, socket, room_id));
+                    boost::asio::placeholders::error, socket, room_id));
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_connected(
     const boost::system::error_code& err,
-    boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket, int room_id)
 {
     if (err)
     {
-        // TODO error handling
         if (err.value() == boost::asio::error::operation_aborted)
         {
             spdlog::debug("[session] Cancelling connecting to room {}.",
@@ -114,6 +125,7 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
         }
         spdlog::warn("[session] Failed connecting to room {}! err: {}:{}",
                      room_id, err.value(), err.message());
+        on_room_failed(room_id);
         return;
     }
 
@@ -121,6 +133,20 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
     _connections.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(room_id),
-        std::forward_as_tuple(socket, shared_from_this(), room_id));
-    // TODO notification?
+        std::forward_as_tuple(socket, shared_from_this(), room_id)); // Construct connection obj.
+}
+
+void vNerve::bilibili::bilibili_connection_manager::on_room_failed(int room_id)
+{
+    // TODO impl
+}
+
+void vNerve::bilibili::bilibili_connection_manager::on_room_data(int room_id, borrowed_message* msg)
+{
+    // TODO impl
+}
+
+void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)
+{
+    _connections.erase(room_id);
 }

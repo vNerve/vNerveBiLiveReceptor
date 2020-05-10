@@ -15,6 +15,8 @@
 
 namespace vNerve::bilibili
 {
+class borrowed_message;
+
 ///
 /// Global network session for Bilibili Livestream chat crawling.
 /// This should be created only once through the whole program.
@@ -27,6 +29,7 @@ private:
     boost::thread_group _pool;
 
     std::unordered_map<int, bilibili_connection> _connections;
+    int _max_connections;
 
     boost::asio::ip::tcp::resolver _resolver;
 
@@ -37,11 +40,11 @@ private:
                      int room_id);
     void on_connected(
         const boost::system::error_code& err,
-        boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
         std::shared_ptr<boost::asio::ip::tcp::socket>, int);
 
     void on_room_failed(int room_id);
-    void on_room_data(unsigned char* data, size_t len);
+    void on_room_data(int room_id, borrowed_message* msg);
+    void on_room_closed(int room_id);
 
     std::string _shared_heartbeat_buffer_str;
     boost::asio::const_buffer _shared_heartbeat_buffer; // binary string :)
@@ -54,6 +57,7 @@ public:
     ~bilibili_connection_manager();
 
     void open_connection(int room_id);
+    void close_connection(int room_id);
 
     const boost::asio::const_buffer& get_heartbeat_buffer()
     {
