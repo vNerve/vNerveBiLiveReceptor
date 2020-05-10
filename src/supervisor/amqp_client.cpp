@@ -114,7 +114,8 @@ void amqp_asio_connection::close_socket()
         return;
     _socket->shutdown(boost::asio::socket_base::shutdown_both);
 
-    boost::system::error_code ec;
+    boost::system::error_code ec = boost::system::error_code(boost::system::errc::operation_canceled, boost::system::system_category());
+    _timer.cancel(ec);
     _socket->close(ec);
     _socket = nullptr;
 }
