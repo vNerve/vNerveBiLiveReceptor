@@ -32,6 +32,86 @@ namespace vNerve::bilibili
 const size_t JSON_BUFFER_SIZE = 128 * 1024;
 const size_t PARSE_BUFFER_SIZE = 32 * 1024;
 
+robin_hood::unordered_map<string, function<bool(const Document&, RoomMessage*, Arena*)>> command;
+
+class borrowed_message : public borrowed_buffer
+{
+private:
+    const RoomMessage* _message;
+
+public:
+    borrowed_message(RoomMessage* message)
+        : _message(message) {}
+    ~borrowed_message() {}
+    size_t size() override { return _message->ByteSizeLong(); }
+    void write(void* data, int size) override { _message->SerializeToArray(data, size); }
+};
+
+class parse_context
+{
+private:
+    unsigned char _json_buffer[JSON_BUFFER_SIZE];
+    unsigned char _parse_buffer[PARSE_BUFFER_SIZE];
+    MemoryPoolAllocator _value_allocator;
+    MemoryPoolAllocator _stack_allocator;
+    Document _document;
+    Arena _arena;
+    RoomMessage* _message;
+    borrowed_message _borrowed_message;
+
+public:
+    parse_context()
+        : _value_allocator(&_json_buffer, JSON_BUFFER_SIZE),
+          _stack_allocator(&_parse_buffer, PARSE_BUFFER_SIZE),
+          _document(&_value_allocator, PARSE_BUFFER_SIZE, &_stack_allocator),
+          // 类成员按声明顺序初始化
+          // _arena({256, 8192}),
+          _message(Arena::CreateMessage<RoomMessage>(&_arena)),
+          _borrowed_message(_message)
+    {
+    }
+    ///
+    /// 用于处理拆开数据包获得的json。
+    /// @param buf json的缓冲区，将在函数中复用。
+    /// @param room_id 消息所在的房间号
+    /// @return json转换为的protobuf序列化后的buffer。
+    const borrowed_message* serialize(char* buf, const unsigned int& room_id)
+    {
+        _message->Clear();
+        _document.ParseInsitu(buf);
+        _message->set_room_id(room_id);
+        // TODO: 使用boost::multiindex配合robin_hood::hash魔改robin_hood::unordered_map来避免无意义的内存分配
+        if (!(_document.HasMember("cmd")
+              && _document["cmd"].IsString()))
+        {
+            SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed");
+            return nullptr;
+        }
+        string cmd(_document["cmd"].GetString(), _document["cmd"].GetStringLength());
+        if ((command.find(cmd) != command.end())
+            && command[cmd](_document, _message, &_arena))
+            return &_borrowed_message;
+        // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
+        SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: " + cmd);
+        return nullptr;
+    }
+    ~parse_context();
+};
+
+boost::thread_specific_ptr<parse_context> _parse_context;
+
+parse_context* get_parse_context()
+{
+    if (!_parse_context.get())
+        _parse_context.reset(new parse_context);
+    return _parse_context.get();
+}
+
+const borrowed_buffer* serialize_buffer(char* buf, const unsigned int& room_id)
+{
+    return get_parse_context()->serialize(buf, room_id);
+}
+
 #define CMD(name)                                                         \
     bool cmd_##name(const Document&, RoomMessage*, Arena*);               \
     bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second; \
@@ -43,8 +123,6 @@ const size_t PARSE_BUFFER_SIZE = 32 * 1024;
         SPDLOG_TRACE("[bili_json] bilibili json type check failed: " #expr); \
         return false;                                                        \
     }
-
-robin_hood::unordered_map<string, function<bool(const Document&, RoomMessage*, Arena*)>> command;
 
 CMD(DANMU_MSG)
 {
@@ -383,84 +461,6 @@ CMD(SEND_GIFT)
     embedded_user_message->set_allocated_gift(embedded_gift);
     message->set_allocated_user_message(embedded_user_message);
     return true;
-}
-
-class borrowed_message : public borrowed_buffer
-{
-private:
-    const RoomMessage* _message;
-
-public:
-    borrowed_message(RoomMessage* message)
-        : _message(message) {}
-    ~borrowed_message() {}
-    size_t size() override { return _message->ByteSizeLong(); }
-    void write(void* data, int size) override { _message->SerializeToArray(data, size); }
-};
-
-class parse_context
-{
-private:
-    unsigned char _json_buffer[JSON_BUFFER_SIZE];
-    unsigned char _parse_buffer[PARSE_BUFFER_SIZE];
-    MemoryPoolAllocator _value_allocator;
-    MemoryPoolAllocator _stack_allocator;
-    Document _document;
-    Arena _arena;
-    RoomMessage* _message;
-    borrowed_message _borrowed_message;
-
-public:
-    parse_context()
-        : _value_allocator(&_json_buffer, JSON_BUFFER_SIZE),
-          _stack_allocator(&_parse_buffer, PARSE_BUFFER_SIZE),
-          _document(&_value_allocator, PARSE_BUFFER_SIZE, &_stack_allocator),
-          // 类成员按声明顺序初始化
-          // _arena({256, 8192}),
-          _message(Arena::CreateMessage<RoomMessage>(&_arena)),
-          _borrowed_message(_message)
-    {
-    }
-    ///
-    /// 用于处理拆开数据包获得的json。
-    /// @param buf json的缓冲区，将在函数中复用。
-    /// @param room_id 消息所在的房间号
-    /// @return json转换为的protobuf序列化后的buffer。
-    const borrowed_message* serialize(char* buf, const unsigned int& room_id)
-    {
-        _message->Clear();
-        _document.ParseInsitu(buf);
-        _message->set_room_id(room_id);
-        // TODO: 使用boost::multiindex配合robin_hood::hash魔改robin_hood::unordered_map来避免无意义的内存分配
-        if (!(_document.HasMember("cmd")
-              && _document["cmd"].IsString()))
-        {
-            SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed");
-            return nullptr;
-        }
-        string cmd(_document["cmd"].GetString(), _document["cmd"].GetStringLength());
-        if ((command.find(cmd) != command.end())
-            && command[cmd](_document, _message, &_arena))
-            return &_borrowed_message;
-        // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
-        SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: " + cmd);
-        return nullptr;
-    }
-    ~parse_context();
-};
-
-boost::thread_specific_ptr<parse_context> _parse_context;
-
-parse_context* get_parse_context()
-{
-    if (!_parse_context.get())
-        _parse_context.reset(new parse_context);
-    return _parse_context.get();
-}
-
-const borrowed_buffer* serialize_buffer(char* buf, const unsigned int& room_id)
-{
-    return get_parse_context()->serialize(buf, room_id);
 }
 
 }  // namespace vNerve::bilibili
