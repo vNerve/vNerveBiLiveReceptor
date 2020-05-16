@@ -4,21 +4,20 @@
 
 #include <boost/asio.hpp>
 #include <boost/thread.hpp>
+#include <utility>
 #include <spdlog/spdlog.h>
 
-vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const config::config_t options)
+vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const config::config_t options, room_event_handler on_room_failed, room_data_handler on_room_data)
     : _context((*_options)["threads"].as<int>()),
       _guard(_context.get_executor()),
-      _max_connections((*_options)["max-rooms"].as<int>()),
       _resolver(_context),
+      _max_connections((*_options)["max-rooms"].as<int>()),
+      _on_room_failed(std::move(on_room_failed)),
+      _on_room_data(std::move(on_room_data)),
       _options(options),
       _shared_heartbeat_buffer_str(generate_heartbeat_packet()),
       _shared_heartbeat_buffer(
-          boost::asio::buffer(_shared_heartbeat_buffer_str)),
-      _shared_zlib_buffer([](unsigned char* buf) -> void {
-          delete[] buf;
-      }),
-      _shared_zlib_buffer_size((*_options)["zlib-buffer"].as<size_t>())
+          boost::asio::buffer(_shared_heartbeat_buffer_str))
 {
     int threads = (*_options)["threads"].as<int>();
     spdlog::info("[session] Creating session with thread pool size={}",
@@ -41,16 +40,6 @@ vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
             ex.code().value(), ex.code().message(), ex.what());
     }
 }
-
-boost::asio::mutable_buffer
-vNerve::bilibili::bilibili_connection_manager::get_shared_zlib_buffer()
-{
-    if (!_shared_zlib_buffer.get())
-        _shared_zlib_buffer.reset(new unsigned char[_shared_zlib_buffer_size]);
-    return boost::asio::buffer(_shared_zlib_buffer.get(),
-                               _shared_zlib_buffer_size);
-}
-
 void vNerve::bilibili::bilibili_connection_manager::open_connection(const int room_id)
 {
     auto& server_addr = (*_options)["chat-server"].as<std::string>();
@@ -134,16 +123,6 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
         std::piecewise_construct,
         std::forward_as_tuple(room_id),
         std::forward_as_tuple(socket, shared_from_this(), room_id)); // Construct connection obj.
-}
-
-void vNerve::bilibili::bilibili_connection_manager::on_room_failed(int room_id)
-{
-    // TODO impl
-}
-
-void vNerve::bilibili::bilibili_connection_manager::on_room_data(int room_id, borrowed_message* msg)
-{
-    // TODO impl
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)

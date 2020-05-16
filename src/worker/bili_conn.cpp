@@ -69,13 +69,17 @@ void vNerve::bilibili::bilibili_connection::start_read()
                     boost::asio::placeholders::bytes_transferred));
 }
 
-void vNerve::bilibili::bilibili_connection::close(const bool failed) const
+void vNerve::bilibili::bilibili_connection::close(const bool failed)
 {
     boost::system::error_code ec;
+    if (!_socket)
+        return;
     _socket->shutdown(boost::asio::socket_base::shutdown_both, ec);
     _socket->cancel(ec);
     _socket->close(ec);
     _heartbeat_timer->cancel(ec);
+
+    _socket.reset();
 
     if (failed)
         _session->on_room_failed(_room_id);
@@ -108,7 +112,7 @@ void vNerve::bilibili::bilibili_connection::on_join_room_sent(
 }
 
 void vNerve::bilibili::bilibili_connection::on_heartbeat_sent(
-    const boost::system::error_code& err, const size_t transferred) const
+    const boost::system::error_code& err, const size_t transferred)
 {
     if (err)
     {

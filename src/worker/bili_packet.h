@@ -89,9 +89,7 @@ class borrowed_message;
 std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred,
                                         size_t buffer_size,
                                         size_t skipping_size,
-                                        std::function<void(borrowed_buffer*)> data_handler);
-
-void handle_packet(unsigned char* buf);
+                                        std::function<void(borrowed_message*)> data_handler);
 
 std::string generate_heartbeat_packet();
 std::string generate_join_room_packet(int room_id, int proto_ver);

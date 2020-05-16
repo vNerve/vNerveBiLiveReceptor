@@ -10,10 +10,13 @@ namespace vNerve::bilibili
 {
 const size_t zlib_buffer_size = 256 * 1024;
 
+void handle_packet(unsigned char* buf, const std::function<void(borrowed_message*)>&);
+
 std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
                                         const size_t transferred,
                                         const size_t buffer_size,
-                                        const size_t skipping_size)
+                                        const size_t skipping_size,
+                                        std::function<void(borrowed_message*)> data_handler)
 {
     spdlog::trace(
         "[bili_buffer] [{:p}] Handling buffer: transferred={}, buffer_size={}, skipping_size={}.",
@@ -76,7 +79,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
 
         // 到此处我们拥有一个完整的数据包：[begin, begin + length)
 
-        handle_packet(begin);
+        handle_packet(begin, data_handler);
         remaining -= length;
         begin += length;
     }
@@ -106,7 +109,7 @@ std::tuple<unsigned char*, int, unsigned long> decompress_buffer(
     return {result == Z_OK ? zlib_buf : nullptr, result, out_size};
 }
 
-void handle_packet(unsigned char* buf)
+void handle_packet(unsigned char* buf, const std::function<void(borrowed_message*)>& handler)
 {
     auto header = reinterpret_cast<bilibili_packet_header*>(buf);
     if (header->header_length() != sizeof(bilibili_packet_header))
@@ -151,7 +154,7 @@ void handle_packet(unsigned char* buf)
             }
             return;
         }
-        handle_buffer(decompressed, out_size, out_size, 0);
+        handle_buffer(decompressed, out_size, out_size, 0, handler);
         //handle_packet(decompressed);
     }
     break;
@@ -167,6 +170,7 @@ void handle_packet(unsigned char* buf)
             // TODO parse and send
             spdlog::trace("[packet] [{:p}] Received JSON data. len=", buf,
                           payload_size);
+            // TODO handler(data)
         }
         break;
         case heartbeat_resp:
