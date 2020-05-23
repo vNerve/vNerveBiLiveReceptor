@@ -1,6 +1,6 @@
 #include "worker_scheduler.h"
 
-#include "supervisor_server_session.h"
+#include "worker_connection_manager.h"
 #include "simple_worker_proto.h"
 #include "simple_worker_proto_generator.h"
 
@@ -32,7 +32,7 @@ scheduler_session::scheduler_session(const config::config_t config)
       _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>())),
       _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>()))
 {
-    _worker_session = std::make_shared<supervisor_server_session>(
+    _worker_session = std::make_shared<worker_connection_manager>(
         config,
         std::bind(&scheduler_session::handle_buffer, shared_from_this(),
                   std::placeholders::_1, std::placeholders::_2,

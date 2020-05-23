@@ -35,7 +35,7 @@ vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
     }
     catch (boost::system::system_error& ex)
     {
-        spdlog::error(
+        spdlog::critical(
             "[session] Failed shutting down session IO Context! err:{}:{}:{}",
             ex.code().value(), ex.code().message(), ex.what());
     }

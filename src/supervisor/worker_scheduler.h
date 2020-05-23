@@ -1,7 +1,7 @@
 #pragma once
 #include "config.h"
 #include "type.h"
-#include "supervisor_server_session.h"
+#include "worker_connection_manager.h"
 
 #include <boost/asio/detail/socket_ops.hpp>
 #include <boost/multi_index_container.hpp>
@@ -109,7 +109,7 @@ using workers_map = unordered_map<identifier_t, worker_status>;
 class scheduler_session : std::enable_shared_from_this<scheduler_session>
 {
 private:
-    std::shared_ptr<supervisor_server_session> _worker_session;
+    std::shared_ptr<worker_connection_manager> _worker_session;
 
     tasks_set _tasks;
     rooms_map _rooms;

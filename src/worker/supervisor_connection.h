@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "simple_worker_proto_handler.h"
+#include "asio_socket_write_helper.h"
 
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
@@ -23,8 +24,8 @@ class supervisor_connection : std::enable_shared_from_this<supervisor_connection
 private:
     config::config_t _config;
 
-    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _guard;
     boost::asio::io_context _context;
+    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _guard;
 
     // WARNING: Don't turn this into thread pool. Only single working thread is allowed.
     boost::thread _thread;
@@ -32,6 +33,7 @@ private:
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
 
     simple_worker_proto_handler _proto_handler;
+    asio_socket_write_helper _write_helper;
 
     boost::asio::deadline_timer _timer;
     int _retry_interval_sec;
@@ -39,19 +41,13 @@ private:
     std::string _supervisor_host;
     std::string _supervisor_port;
 
-    moodycamel::ConcurrentQueue<supervisor_buffer_owned> _queue;
-    bool _pending_write = false;
     supervisor_connected_handler _connected_handler;
 
-    void start_async_write();
     void connect();
     void force_close();
     void reschedule_retry_timer();
 
     void on_retry_timer_tick(const boost::system::error_code& ec);
-    void on_written(const ::boost::system::error_code& ec,
-                    size_t bytes_transferred,
-                    std::array<supervisor_buffer_owned, MAX_WRITE_BATCH> buffers, size_t batch_size);
     void on_resolved(
         const boost::system::error_code& ec,
         boost::asio::ip::tcp::resolver::iterator endpoint_iterator

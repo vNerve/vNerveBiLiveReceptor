@@ -43,11 +43,12 @@ set(SUPERVISOR_SOURCE_FILES
     "src/shared/config.cpp"
     "src/shared/simple_worker_proto.cpp"
     "src/shared/simple_worker_proto_handler.cpp"
+    "src/shared/asio_socket_write_helper.cpp"
 
     "src/supervisor/main.cpp"
     "src/supervisor/config.cpp"
     "src/supervisor/room_list_updater.cpp"
-    "src/supervisor/supervisor_server_session.cpp"
+    "src/supervisor/worker_connection_manager.cpp"
     "src/supervisor/simple_worker_proto_generator.cpp"
     "src/supervisor/worker_scheduler.cpp"
     "src/supervisor/amqp_client.cpp"
