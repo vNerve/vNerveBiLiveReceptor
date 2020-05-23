@@ -13,6 +13,7 @@ set(WORKER_SOURCE_FILES
     "src/shared/config.cpp"
     "src/shared/simple_worker_proto.cpp"
     "src/shared/simple_worker_proto_handler.cpp"
+    "src/shared/asio_socket_write_helper.cpp"
 
     "src/worker/main.cpp"
     "src/worker/config.cpp"

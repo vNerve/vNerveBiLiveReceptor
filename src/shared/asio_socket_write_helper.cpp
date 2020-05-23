@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
+#include <utility>
 
 #define LOG_PREFIX "[a_sock] "
 
@@ -9,7 +10,7 @@ namespace vNerve::bilibili
 {
 
 asio_socket_write_helper::asio_socket_write_helper(std::string log_prefix, std::shared_ptr<boost::asio::ip::tcp::socket> socket, socket_close_handler close_handler)
-    : _log_prefix(std::move(log_prefix)), _socket(socket), _close_handler(close_handler)
+    : _log_prefix(std::move(log_prefix)), _socket(socket), _close_handler(std::move(close_handler))
 {
 }
 
