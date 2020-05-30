@@ -53,6 +53,7 @@ set(SUPERVISOR_SOURCE_FILES
     "src/supervisor/simple_worker_proto_generator.cpp"
     "src/supervisor/worker_scheduler.cpp"
     "src/supervisor/amqp_client.cpp"
+    "src/supervisor/deduplicate_context.cpp"
 )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
