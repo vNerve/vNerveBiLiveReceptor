@@ -49,7 +49,7 @@ public:
     deduplicate_context(const deduplicate_context& other) = delete;
     deduplicate_context(deduplicate_context&& other) noexcept
         : _container(std::move(other._container)),
-          _threshold(std::move(other._threshold))
+          _threshold(other._threshold)
     {
     }
 
@@ -59,7 +59,7 @@ public:
         if (this == &other)
             return *this;
         _container = std::move(other._container);
-        _threshold = std::move(other._threshold);
+        _threshold = other._threshold;
         return *this;
     }
 };
