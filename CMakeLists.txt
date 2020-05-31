@@ -45,6 +45,7 @@ set(SUPERVISOR_SOURCE_FILES
     "src/shared/simple_worker_proto.cpp"
     "src/shared/simple_worker_proto_handler.cpp"
     "src/shared/asio_socket_write_helper.cpp"
+    "src/shared/http_interval_updater.cpp"
 
     "src/supervisor/main.cpp"
     "src/supervisor/config.cpp"
@@ -63,15 +64,22 @@ target_include_directories(
     src/shared
     proto/cpp)
 
+set(CONAN_OPTIONS "")
+if (WIN32)
+    list(APPEND CONAN_OPTIONS "libcurl:with_winssl=True")
+    list(APPEND CONAN_OPTIONS "libcurl:with_openssl=False")
+endif()
+
 conan_cmake_run(REQUIRES
                     "boost/1.72.0"
                     "zlib/1.2.11"
                     "spdlog/1.5.0"
                     "rapidjson/1.1.0"
                     "protobuf/3.11.4@charliejiang/stable"
-                    "cpp-httplib/0.5.7"
+                    "libcurl/7.70.0"
                     "amqp-cpp/4.1.6"
                 BASIC_SETUP CMAKE_TARGETS
+                OPTIONS ${CONAN_OPTIONS}
                 ENV "CONAN_CMAKE_GENERATOR=Ninja"
                 BUILD missing)
 
@@ -92,7 +100,7 @@ target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::spdlog
                         CONAN_PKG::protobuf
                         CONAN_PKG::rapidjson
-                        CONAN_PKG::cpp-httplib
+                        CONAN_PKG::libcurl
                         CONAN_PKG::amqp-cpp
                         )
 

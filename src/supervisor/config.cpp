@@ -2,11 +2,9 @@
 
 namespace vNerve::bilibili::config
 {
-const std::string DEFAULT_VNERVE_SERVER = "localhost";
-const std::string DEFAULT_VNERVE_ENDPOINT = "/";
-const int DEFAULT_VNERVE_SERVER_PORT = 6161;
+const std::string DEFAULT_VNERVE_SERVER = "http://localhost:6161/";
 const int DEFAULT_VNERVE_UPDATE_INTERVAL_MINUTES = 30;
-const bool DEFAULT_VNERVE_HTTPS = false;
+const int DEFAULT_VNERVE_UPDATE_TIMEOUT_SEC = 30;
 
 const int DEFAULT_WORKER_MQ_THREADS = 1;
 const int DEFAULT_WORKER_RECV_TIMEOUT_SEC = 30;
@@ -28,10 +26,9 @@ boost::program_options::options_description create_description()
 
     auto descRoomList = options_description("vNerve bilibili info server options");
     descRoomList.add_options()
-        ("room-list-host", value<std::string>()->default_value(DEFAULT_VNERVE_SERVER), "vNerve server host.")
-        ("room-list-port", value<int>()->default_value(DEFAULT_VNERVE_SERVER_PORT), "vNerve server port.")
-        ("room-list-endpoint", value<std::string>()->default_value(DEFAULT_VNERVE_ENDPOINT), "vNerve server endpoint. start with '/'")
+        ("room-list-update-url", value<std::string>()->default_value(DEFAULT_VNERVE_SERVER), "vNerve VTuber list updating GraphQL url.")
         ("room-list-update-interval,u", value<int>()->default_value(DEFAULT_VNERVE_UPDATE_INTERVAL_MINUTES), "vNerve VTuber list updating interval(min).")
+        ("room-list-update-timeout-sec", value<int>()->default_value(DEFAULT_VNERVE_UPDATE_TIMEOUT_SEC), "vNerve VTuber list updating timeout(sec).")
     ;
 
     auto descWorker = options_description("Worker settings");
