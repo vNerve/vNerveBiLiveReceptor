@@ -7,16 +7,6 @@ set(CMAKE_CXX_STANDARD 17)
 include(conan.cmake)
 conan_check(REQUIRED)
 
-conan_cmake_run(REQUIRES
-                    "boost/1.72.0"
-                    "zlib/1.2.11"
-                    "spdlog/1.5.0"
-                    "rapidjson/1.1.0"
-                    "protobuf/3.11.4@charliejiang/stable"
-                    "cpp-httplib/0.5.7"
-                BASIC_SETUP CMAKE_TARGETS
-                BUILD missing)
-
 set(WORKER_EXECUTABLE_NAME
     v_nerve_bilibili_receptor)
 set(WORKER_SOURCE_FILES
@@ -37,22 +27,10 @@ set(WORKER_SOURCE_FILES
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
-    vendor
     src/worker
     src/shared
     vendor/
     proto/cpp)
-target_link_libraries(${WORKER_EXECUTABLE_NAME}
-                        CONAN_PKG::boost
-                        CONAN_PKG::zlib
-                        CONAN_PKG::spdlog
-                        CONAN_PKG::rapidjson
-                        CONAN_PKG::protobuf
-                        )
-if (WIN32)
-    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
-    target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
-endif()
 
 set(SUPERVISOR_EXECUTABLE_NAME
     v_nerve_bilibili_receptor_supervisor)
@@ -69,15 +47,37 @@ add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(
     ${SUPERVISOR_EXECUTABLE_NAME} PUBLIC
     vendor
-    src/suprtvisor
+    src/supervisor
     src/shared
     proto/cpp)
+
+conan_cmake_run(REQUIRES
+                    "boost/1.72.0"
+                    "zlib/1.2.11"
+                    "spdlog/1.5.0"
+                    "rapidjson/1.1.0"
+                    "protobuf/3.11.4@charliejiang/stable"
+                    "cpp-httplib/0.5.7"
+                BASIC_SETUP CMAKE_TARGETS
+                BUILD missing)
+target_link_libraries(${WORKER_EXECUTABLE_NAME}
+                        CONAN_PKG::boost
+                        CONAN_PKG::zlib
+                        CONAN_PKG::spdlog
+                        CONAN_PKG::rapidjson
+                        CONAN_PKG::protobuf
+                        )
+if (WIN32)
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
+endif()
 target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::boost
                         CONAN_PKG::spdlog
                         CONAN_PKG::protobuf
                         CONAN_PKG::rapidjson
-                        CONAN_PKG::cpp-httplib)
+                        CONAN_PKG::cpp-httplib
+                        )
 if (WIN32)
     target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
     target_compile_options(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "/utf-8")
