@@ -359,8 +359,8 @@ CMD(SUPER_CHAT_MESSAGE)
     ASSERT_TRACE(user_info[6].IsBool())
     // user_level
     ASSERT_TRACE(user_info.HasMember("user_level"))
-    ASSERT_TRACE(user_level["user_level"].IsUint())
-    embedded_user_info->set_user_level(user_level["user_level"].GetUint());
+    ASSERT_TRACE(user_info["user_level"].IsUint())
+    embedded_user_info->set_user_level(user_info["user_level"].GetUint());
     // user_level_border_color
     // SC似乎没有这个字段
     // title
@@ -422,7 +422,7 @@ CMD(SUPER_CHAT_MESSAGE)
     // price
     ASSERT_TRACE(data.HasMember("price"))
     ASSERT_TRACE(data["price"].IsUint())
-    embedded_superchat->set_price(::google::protobuf::uint32 value)(data["price"].GetUint());
+    embedded_superchat->set_price(data["price"].GetUint());
     // token
     ASSERT_TRACE(data.HasMember("token"))
     ASSERT_TRACE(data["token"].IsString())
@@ -430,7 +430,7 @@ CMD(SUPER_CHAT_MESSAGE)
     // lasting_time_sec
     ASSERT_TRACE(data.HasMember("time"))
     ASSERT_TRACE(data["time"].IsUint())
-    embedded_superchat->set_lasting_time_sec(data["time"].Get);
+    embedded_superchat->set_lasting_time_sec(data["time"].GetUint());
     // start_time
     ASSERT_TRACE(data.HasMember("start_time"))
     ASSERT_TRACE(data["start_time"].IsUint64())
