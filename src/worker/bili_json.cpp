@@ -184,15 +184,15 @@ CMD(DANMU_MSG)
             // 未设置的protobuf字段会被置为默认值
             SPDLOG_TRACE("[bili_json] both vip and svip are true");
         else  // 均为假 无直播会员
-            embedded_user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
+            embedded_user_info->set_live_vip_level(live::LiveVipLevel::NO_VIP);
     }
     else
     {
         if (user_info[3].GetBool())
             // 月费会员为真 年费会员为假 月费
-            embedded_user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
+            embedded_user_info->set_live_vip_level(live::LiveVipLevel::MONTHLY);
         else  // 月费会员为假 年费会员为真 年费
-            embedded_user_info->set_vip_level(live::LiveVipLevel::YEARLY);
+            embedded_user_info->set_live_vip_level(live::LiveVipLevel::YEARLY);
     }
     // regular user
     ASSERT_TRACE(user_info[5].IsNumber())
@@ -233,7 +233,7 @@ CMD(DANMU_MSG)
     embedded_medal_info->set_medal_color(medal_info[5].GetUint());
     // liver user name
     ASSERT_TRACE(medal_info[2].IsString())
-    embedded_medal_info->set_streamer_uname(medal_info[2].GetString(), medal_info[2].GetStringLength());
+    embedded_medal_info->set_streamer_name(medal_info[2].GetString(), medal_info[2].GetStringLength());
     // liver room id
     ASSERT_TRACE(medal_info[3].IsUint())
     embedded_medal_info->set_streamer_roomid(medal_info[3].GetUint());
@@ -340,15 +340,15 @@ CMD(SUPER_CHAT_MESSAGE)
             // 未设置的protobuf字段会被置为默认值
             SPDLOG_TRACE("[bili_json] both vip and svip are true");
         else  // 均为假 无直播会员
-            embedded_user_info->set_vip_level(live::LiveVipLevel::NO_VIP);
+            embedded_user_info->set_live_vip_level(live::LiveVipLevel::NO_VIP);
     }
     else
     {
         if (user_info["is_vip"].GetBool())
             // 月费会员为真 年费会员为假 月费
-            embedded_user_info->set_vip_level(live::LiveVipLevel::MONTHLY);
+            embedded_user_info->set_live_vip_level(live::LiveVipLevel::MONTHLY);
         else  // 月费会员为假 年费会员为真 年费
-            embedded_user_info->set_vip_level(live::LiveVipLevel::YEARLY);
+            embedded_user_info->set_live_vip_level(live::LiveVipLevel::YEARLY);
     }
     // regular user
     // phone_verified
@@ -401,7 +401,7 @@ CMD(SUPER_CHAT_MESSAGE)
     // liver user name
     ASSERT_TRACE(medal_info.HasMember("anchor_uname"))
     ASSERT_TRACE(medal_info["anchor_uname"].IsString())
-    embedded_medal_info->set_streamer_uname(medal_info["anchor_uname"].GetString(), medal_info["anchor_uname"].GetStringLength());
+    embedded_medal_info->set_streamer_name(medal_info["anchor_uname"].GetString(), medal_info["anchor_uname"].GetStringLength());
     // liver room id
     ASSERT_TRACE(medal_info.HasMember("anchor_roomid"))
     ASSERT_TRACE(medal_info["anchor_roomid"].IsUint())
