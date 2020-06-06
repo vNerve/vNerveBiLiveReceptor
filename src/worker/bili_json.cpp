@@ -4,6 +4,8 @@
 #include "vNerve/bilibili/live/room_message.pb.h"
 #include "vNerve/bilibili/live/user_message.pb.h"
 
+#define CRCPP_USE_CPP11
+#include <CRC.h>
 #include <robin_hood.h>
 #include <boost/thread/tss.hpp>
 #include <rapidjson/allocators.h>
@@ -12,10 +14,11 @@
 #include <google/protobuf/arena.h>
 #include <spdlog/spdlog.h>
 
-#include <functional>
+#include <cstring>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <functional>
 
 using std::function;
 using std::string;
@@ -28,10 +31,6 @@ using Document = rapidjson::GenericDocument<rapidjson::UTF8<>, MemoryPoolAllocat
 
 namespace vNerve::bilibili
 {
-// 需要可配置缓存大小吗
-const size_t JSON_BUFFER_SIZE = 128 * 1024;
-const size_t PARSE_BUFFER_SIZE = 32 * 1024;
-
 class borrowed_bilibili_message : public borrowed_message
 {
 public:
@@ -45,6 +44,10 @@ public:
     size_t size() override { return _message->ByteSizeLong(); }
     void write(void* data, int size) override { _message->SerializeToArray(data, size); }
 };
+
+const size_t JSON_BUFFER_SIZE = 128 * 1024;
+const size_t PARSE_BUFFER_SIZE = 32 * 1024;
+const CRC::Table<uint32_t, 32> crc_lookup_table(CRC::CRC_32());
 
 robin_hood::unordered_map<string, function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>> command;
 
@@ -72,11 +75,13 @@ public:
     ///
     /// 用于处理拆开数据包获得的json。
     /// @param buf json的缓冲区，将在函数中复用。
-    /// @param room_id 消息所在的房间号
+    /// @param length 原始json的长度，生成CRC时使用。
+    /// @param room_id 消息所在的房间号。
     /// @return json转换为的protobuf序列化后的buffer。
-    const borrowed_bilibili_message* serialize(char* buf, const unsigned int& room_id)
+    const borrowed_bilibili_message* serialize(char* buf, const size_t& length, const unsigned int& room_id)
     {
         _borrowed_bilibili_message._message->Clear();
+        _borrowed_bilibili_message.crc32 = CRC::Calculate(buf, length, crc_lookup_table);  // 这个库又会做多少内存分配呢（已经不在乎了
         _document.ParseInsitu(buf);
         _borrowed_bilibili_message._message->set_room_id(room_id);
         if (!(_document.HasMember("cmd")
@@ -106,9 +111,9 @@ parse_context* get_parse_context()
     return _parse_context.get();
 }
 
-const borrowed_message* serialize_buffer(char* buf, const unsigned int& room_id)
+const borrowed_message* serialize_buffer(char* buf, const size_t& length, const unsigned int& room_id)
 {
-    return get_parse_context()->serialize(buf, room_id);
+    return get_parse_context()->serialize(buf, length, room_id);
 }
 
 #define CMD(name)                                                                                    \
@@ -130,6 +135,8 @@ CMD(DANMU_MSG)
     // 尽管所有UserMessage都需要设置UserInfo
     // 但是不同cmd的数据格式也有所不同
     // 因此设置UserInfo和设置RMQ的topic都只能强耦合在每个处理函数里
+
+    // TODO: 设置routing_key
 
     // 以下变量均为 rapidjson::GenericArray ?
     ASSERT_TRACE(document.HasMember("info"))
@@ -280,12 +287,14 @@ CMD(DANMU_MSG)
     embedded_user_info->set_allocated_medal(embedded_medal_info);
     embedded_user_message->set_allocated_user(embedded_user_info);
     embedded_user_message->set_allocated_danmaku(embedded_danmaku);
-    message->set_allocated_user_message(embedded_user_message);
+    message._message->set_allocated_user_message(embedded_user_message);
     return true;
 }
 
 CMD(SUPER_CHAT_MESSAGE)
 {
+    // TODO: 设置routing_key
+
     // TODO: 补充SC中的字段
 
     // 以下变量均为 rapidjson::GenericArray ?
@@ -434,13 +443,15 @@ CMD(SUPER_CHAT_MESSAGE)
     embedded_user_info->set_allocated_medal(embedded_medal_info);
     embedded_user_message->set_allocated_user(embedded_user_info);
     embedded_user_message->set_allocated_super_chat(embedded_superchat);
-    message->set_allocated_user_message(embedded_user_message);
+    message._message->set_allocated_user_message(embedded_user_message);
 
     return true;
 }
 
 CMD(SEND_GIFT)
 {
+    // TODO: 设置routing_key
+
     // 以下变量均为 rapidjson::GenericArray ?
     ASSERT_TRACE(document.HasMember("data"))
     ASSERT_TRACE(document["data"].IsObject())
@@ -458,7 +469,7 @@ CMD(SEND_GIFT)
     // embedded_user_info->set_allocated_medal(embedded_medal_info);
     embedded_user_message->set_allocated_user(embedded_user_info);
     embedded_user_message->set_allocated_gift(embedded_gift);
-    message->set_allocated_user_message(embedded_user_message);
+    message._message->set_allocated_user_message(embedded_user_message);
     return true;
 }
 

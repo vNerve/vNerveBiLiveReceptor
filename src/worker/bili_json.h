@@ -4,5 +4,6 @@
 
 namespace vNerve::bilibili
 {
-const borrowed_message* serialize_buffer(char* buf);
+// 我寻思这里该写点文档
+const borrowed_message* serialize_buffer(char* buf, const size_t& length, const unsigned int& roomid);
 }  // namespace vNerve::bilibili

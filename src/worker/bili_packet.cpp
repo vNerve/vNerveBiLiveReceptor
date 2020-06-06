@@ -1,7 +1,7 @@
 #include "bili_packet.h"
 
 #include "bili_json.h"
-#include "borrowed_buffer.h"
+#include "borrowed_message.h"
 
 #include <boost/thread.hpp>
 #include <spdlog/spdlog.h>
@@ -165,8 +165,9 @@ void handle_packet(unsigned char* buf)
         {
             spdlog::trace("[packet] [{:p}] Received JSON data. len=",
                           buf, payload_size);
-            borrowed_buffer protobuf = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)));
-            // TODO pack and send
+            // TODO: call serialize
+            // borrowed_buffer protobuf = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)));
+            // TODO: pack and send
         }
         break;
         case heartbeat_resp:
