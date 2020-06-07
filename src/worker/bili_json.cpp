@@ -99,7 +99,7 @@ public:
         SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: " + cmd);
         return nullptr;
     }
-    ~parse_context();
+    ~parse_context() {}
 };
 
 boost::thread_specific_ptr<parse_context> _parse_context;
