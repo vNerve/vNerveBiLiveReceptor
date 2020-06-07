@@ -2,16 +2,19 @@
 
 #include <memory>
 #include <boost/thread.hpp>
+#include <utility>
 #include <spdlog/spdlog.h>
 
 namespace vNerve::bilibili::mq
 {
-amqp_asio_connection::amqp_asio_connection(const std::string& host, int port, const AMQP::Login& login, const std::string& vhost)
+amqp_asio_connection::amqp_asio_connection(const std::string& host, int port, const AMQP::Login& login, const std::string& vhost, int reconnect_interval_sec)
     : _login(login),
       _vhost(vhost),
+      _reconnect_interval_sec(reconnect_interval_sec),
       _guard(_context.get_executor()),
       _resolver(_context.get_executor()),
       _timer(_context.get_executor()),
+      _reconnect_timer(_context.get_executor()),
       _host(host),
       _port(port)
 {
@@ -66,7 +69,7 @@ void amqp_asio_connection::onClosed(AMQP::Connection* connection)
         return;
     _initializing = false;
     spdlog::info("[amqp] AMQP broker disconnecting.");
-    close_socket();
+    close_socket(true);
 }
 
 uint16_t amqp_asio_connection::onNegotiate(AMQP::Connection* connection, uint16_t interval)
@@ -78,7 +81,7 @@ uint16_t amqp_asio_connection::onNegotiate(AMQP::Connection* connection, uint16_
     return _heartbeat_interval_sec * 2;
 }
 
-bool amqp_asio_connection::reconnect(std::function<void()> onReady)
+bool amqp_asio_connection::reconnect()
 {
     spdlog::info("[amqp] Connecting to AMQP broker.");
     if (_connection)
@@ -88,6 +91,8 @@ bool amqp_asio_connection::reconnect(std::function<void()> onReady)
         delete _connection;
         _connection = nullptr;
     }
+    if (_socket)
+        close_socket(true);
     _socket = nullptr;
 
     boost::system::error_code ec;
@@ -97,6 +102,7 @@ bool amqp_asio_connection::reconnect(std::function<void()> onReady)
         spdlog::error(
             "[amqp] Failed resolving DN connecting to AMQP server {}! err: {}:{}",
             _host, ec.value(), ec.message());
+        start_reconnect_timer();
         return false;
     }
     if (_socket && _connection)
@@ -108,19 +114,32 @@ bool amqp_asio_connection::reconnect(std::function<void()> onReady)
         spdlog::error(
             "[amqp] Failed connecting to AMQP server {}! err: {}:{}",
             _host, ec.value(), ec.message());
+        start_reconnect_timer();
         return false;
     }
 
     spdlog::info("[amqp] Connected to AMQP broker. Starting handshake process.");
     _initializing = true;
-    _onReady = onReady;
     _connection = new AMQP::Connection(this, _login, _vhost);
 
     start_async_read();
     return true;
 }
 
-void amqp_asio_connection::close_socket()
+void amqp_asio_connection::disconnect()
+{
+    if (_connection)
+        _connection->close();
+    // close_socket(true);
+}
+
+bool amqp_asio_connection::reconnect(std::function<void()> onReady)
+{
+    _onReady = std::move(onReady);
+    return reconnect();
+}
+
+void amqp_asio_connection::close_socket(bool active)
 {
     spdlog::info("[amqp] Disconnecting AMQP broker connection.");
     _buffer_last_remaining = 0;
@@ -132,6 +151,12 @@ void amqp_asio_connection::close_socket()
     _timer.cancel(ec);
     _socket->close(ec);
     _socket = nullptr;
+
+    if (!active)
+    {
+        spdlog::info("[amqp] Scheduling reconnection in {} seconds.", _reconnect_interval_sec);
+        start_reconnect_timer();
+    }
 }
 
 void amqp_asio_connection::start_async_read()
@@ -151,6 +176,14 @@ void amqp_asio_connection::start_heartbeat_timer()
     _timer.async_wait(boost::bind(&amqp_asio_connection::on_timer_tick, this, boost::asio::placeholders::error));
 }
 
+void amqp_asio_connection::start_reconnect_timer()
+{
+    boost::system::error_code ec;
+    _reconnect_timer.cancel(ec);
+    _reconnect_timer.expires_from_now(boost::posix_time::seconds(_reconnect_interval_sec));
+    _reconnect_timer.async_wait(boost::bind(&amqp_asio_connection::on_reconnection_timer_tick, this, boost::asio::placeholders::error));
+}
+
 void amqp_asio_connection::on_timer_tick(const boost::system::error_code& ec)
 {
     if (ec)
@@ -162,6 +195,13 @@ void amqp_asio_connection::on_timer_tick(const boost::system::error_code& ec)
     }
 
     start_heartbeat_timer();
+}
+
+void amqp_asio_connection::on_reconnection_timer_tick(const boost::system::error_code& ec)
+{
+    if (ec)
+        return;
+    reconnect(); // New reconnection timer will be set if fails.
 }
 
 void amqp_asio_connection::on_received(const boost::system::error_code& ec, size_t transferred)
@@ -195,5 +235,67 @@ void amqp_asio_connection::on_received(const boost::system::error_code& ec, size
     }
 
     start_async_read();
+}
+
+// This will be called on AMQP thread.
+void amqp_context::on_ready()
+{
+    _available = false;
+    _channel = new AMQP::Channel(_connection);
+    _channel->declareExchange(_exchange, AMQP::ExchangeType::topic)
+    .onError(
+        [this](const char* msg) -> void {
+            spdlog::error("[amqp] Error declaring AMQP exchange with name {}! msg:{}", _exchange, msg);
+        }
+    )
+    .onSuccess(
+        [this]() -> void {
+            _available = true;
+            spdlog::info("[amqp] Successfully set up exchange {}!", _exchange);
+        }
+    );
+}
+
+amqp_context::amqp_context(const config::config_t options)
+    : _connection(
+        (*options)["amqp-host"].as<std::string>(),
+        (*options)["amqp-port"].as<int>(),
+        AMQP::Login(
+            (*options)["amqp-user"].as<std::string>(),
+            (*options)["amqp-password"].as<std::string>()),
+        (*options)["amqp-vhost"].as<std::string>(),
+        (*options)["amqp-reconnect-interval-sec"].as<int>()),
+      _exchange((*options)["amqp-exchange"].as<std::string>()),
+      _write_buf(new unsigned char[write_buf_default_size]),
+      _write_buf_len(write_buf_default_size)
+{
+    _connection.post([this]() {
+        _connection.reconnect(std::bind(&amqp_context::on_ready, this));
+    });
+}
+
+amqp_context::~amqp_context()
+{
+    _connection.disconnect();
+}
+
+void amqp_context::post_payload(const std::string_view routing_key, unsigned char const* payload, size_t len)
+{
+    auto buf = new unsigned char[len];
+    auto routing_key_buf = std::string(routing_key);
+    std::memcpy(buf, payload, len);
+    _connection.post([this, routing_key_buf, buf, len]() {
+        if (!_available || !_connection.connection() || !_channel)
+        {
+            delete[] buf;
+            return;
+        }
+        _channel->publish(_exchange, routing_key_buf, reinterpret_cast<char*>(buf), len)
+        .onError([this, &routing_key_buf](const char* msg) -> void
+        {
+            spdlog::warn("[amqp] Error sending payload {} with routing key {} to exchange! msg:{}", _exchange, routing_key_buf, msg);
+        });
+        delete[] buf;
+    });
 }
 }

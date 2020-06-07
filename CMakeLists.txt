@@ -84,9 +84,13 @@ conan_cmake_run(REQUIRES
                 BUILD missing)
 
 if (WIN32)
-    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
-    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601" "-DNOMINMAX")
+    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601" "-DNOMINMAX")
     target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
+endif()
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
+    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
 endif()
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::boost

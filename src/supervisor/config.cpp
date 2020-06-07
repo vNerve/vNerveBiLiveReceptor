@@ -2,6 +2,14 @@
 
 namespace vNerve::bilibili::config
 {
+const std::string DEFAULT_VNERVE_AMQP_SERVER = "localhost";
+const int DEFAULT_VNERVE_AMQP_PORT = 5672;
+const std::string DEFAULT_VNERVE_AMQP_USER = "guest";
+const std::string DEFAULT_VNERVE_AMQP_PASSWORD = "guest";
+const std::string DEFAULT_VNERVE_AMQP_VHOST = "/";
+const int DEFAULT_VNERVE_AMQP_RECONNECT_SEC = 30;
+const std::string DEFAULT_VNERVE_AMQP_EXCHANGE = "vNerve";
+
 const std::string DEFAULT_VNERVE_SERVER = "http://localhost:6161/";
 const int DEFAULT_VNERVE_UPDATE_INTERVAL_MINUTES = 30;
 const int DEFAULT_VNERVE_UPDATE_TIMEOUT_SEC = 30;
@@ -22,6 +30,17 @@ boost::program_options::options_description create_description()
     descGeneric.add_options()
         ("help", "Show help.")
         ("version", "Show version")
+    ;
+
+    auto descMQList = options_description("Message Queue broker options");
+    descMQList.add_options()
+        ("amqp-host", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_SERVER), "vNerve AMQP Server host.")
+        ("amqp-port", value<int>()->default_value(DEFAULT_VNERVE_AMQP_PORT), "vNerve AMQP Server port.")
+        ("amqp-user", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_USER), "vNerve AMQP Server username.")
+        ("amqp-password", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_PASSWORD), "vNerve AMQP Server password.")
+        ("amqp-vhost", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_VHOST), "vNerve AMQP Server vHost.")
+        ("amqp-reconnect-interval-sec", value<int>()->default_value(DEFAULT_VNERVE_AMQP_RECONNECT_SEC), "Interval(sec) between reconnecting to AMQP broker.")
+        ("amqp-exchange", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_EXCHANGE), "Exchange name of vNerve AMQP service.")
     ;
 
     auto descRoomList = options_description("vNerve bilibili info server options");
@@ -45,6 +64,7 @@ boost::program_options::options_description create_description()
     auto desc = options_description("vNerve Bilibili Livestream chat crawling supervisor");
     desc.add(descGeneric);
     desc.add(descRoomList);
+    desc.add(descMQList);
     desc.add(descWorker);
     return desc;
     // clang-format on
