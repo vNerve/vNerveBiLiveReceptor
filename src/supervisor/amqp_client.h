@@ -53,7 +53,9 @@ public:
     AMQP::Connection* connection() const { return _connection; }
     operator AMQP::Connection*() const { return _connection; }
 
+    // Must be running on AMQP thread.
     bool reconnect(std::function<void()> onReady);
     void post(std::function<void()> func);
 };
+
 }

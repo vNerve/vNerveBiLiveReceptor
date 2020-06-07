@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <boost/thread.hpp>
+#include <spdlog/spdlog.h>
 
 namespace vNerve::bilibili::mq
 {
@@ -29,22 +30,24 @@ void amqp_asio_connection::onData(AMQP::Connection* connection, const char* buff
     if (connection != _connection && !_initializing || !_socket)
         return;
 
+    SPDLOG_TRACE("[amqp] Sending data. len={}", size);
     boost::system::error_code ec;
     _socket->send(boost::asio::buffer(buffer, size), 0, ec);
 
     if (ec)
     {
-        // TODO log
-        connection->fail(ec.message().c_str());
+        auto msg = ec.message();
+        spdlog::error("[amqp] Failed sending data to AMQP broker! Disconnecting. err:{}", ec.value(), msg);
+        connection->fail(msg.c_str());
         close_socket();
     }
 }
 
 void amqp_asio_connection::onError(AMQP::Connection* connection, const char* message)
 {
-    // TODO log
     if (connection != _connection && !_initializing || !_socket)
         return;
+    spdlog::error("[amqp] Error handling data from AMQP broker! Disconnecting err:{}", message);
     _initializing = false;
     close_socket();
 }
@@ -53,6 +56,7 @@ void amqp_asio_connection::onReady(AMQP::Connection* connection)
 {
     _initializing = false;
     start_heartbeat_timer();
+    spdlog::info("[amqp] AMQP broker connecting ready.");
     _onReady();
 }
 
@@ -61,6 +65,7 @@ void amqp_asio_connection::onClosed(AMQP::Connection* connection)
     if (connection != _connection && !_initializing || !_socket)
         return;
     _initializing = false;
+    spdlog::info("[amqp] AMQP broker disconnecting.");
     close_socket();
 }
 
@@ -69,13 +74,16 @@ uint16_t amqp_asio_connection::onNegotiate(AMQP::Connection* connection, uint16_
     if (connection != _connection && !_initializing || !_socket)
         return interval;
     _heartbeat_interval_sec = std::min(static_cast<int>(interval), MIN_HEARTBEAT_LEN_SEC) / 2;
+    spdlog::debug("[amqp] Using heartbeat interval = {}sec(s).", _heartbeat_interval_sec);
     return _heartbeat_interval_sec * 2;
 }
 
 bool amqp_asio_connection::reconnect(std::function<void()> onReady)
 {
+    spdlog::info("[amqp] Connecting to AMQP broker.");
     if (_connection)
     {
+        spdlog::info("[amqp] Closing existing AMQP connection.");
         _connection->close();
         delete _connection;
         _connection = nullptr;
@@ -86,7 +94,9 @@ bool amqp_asio_connection::reconnect(std::function<void()> onReady)
     auto endpoints = _resolver.resolve(_host, std::to_string(_port), ec);
     if (ec)
     {
-        // TODO log
+        spdlog::error(
+            "[amqp] Failed resolving DN connecting to AMQP server {}! err: {}:{}",
+            _host, ec.value(), ec.message());
         return false;
     }
     if (_socket && _connection)
@@ -95,10 +105,13 @@ bool amqp_asio_connection::reconnect(std::function<void()> onReady)
     boost::asio::connect(*_socket, endpoints, ec);
     if (ec)
     {
-        // TODO log
+        spdlog::error(
+            "[amqp] Failed connecting to AMQP server {}! err: {}:{}",
+            _host, ec.value(), ec.message());
         return false;
     }
 
+    spdlog::info("[amqp] Connected to AMQP broker. Starting handshake process.");
     _initializing = true;
     _onReady = onReady;
     _connection = new AMQP::Connection(this, _login, _vhost);
@@ -109,6 +122,7 @@ bool amqp_asio_connection::reconnect(std::function<void()> onReady)
 
 void amqp_asio_connection::close_socket()
 {
+    spdlog::info("[amqp] Disconnecting AMQP broker connection.");
     _buffer_last_remaining = 0;
     if (!_socket)
         return;
@@ -124,6 +138,7 @@ void amqp_asio_connection::start_async_read()
 {
     if (!_socket)
         return;
+    SPDLOG_TRACE("[amqp] Starting async read. Last remaining bytes={}", _buffer_last_remaining);
     _socket->async_receive(boost::asio::buffer(_read_buffer + _buffer_last_remaining, READ_BUFFER_LEN - _buffer_last_remaining),
                            boost::bind(&amqp_asio_connection::on_received, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
 }
@@ -141,7 +156,10 @@ void amqp_asio_connection::on_timer_tick(const boost::system::error_code& ec)
     if (ec)
         return;
     if (_connection && _connection->usable())
+    {
+        SPDLOG_DEBUG("[amqp] Sending heartbeat packet.");
         _connection->heartbeat();
+    }
 
     start_heartbeat_timer();
 }
@@ -150,13 +168,15 @@ void amqp_asio_connection::on_received(const boost::system::error_code& ec, size
 {
     if (ec)
     {
+        spdlog::error("[amqp] Failed receiving data from AMQP broker! Disconnecting. err:{}:{}", ec.value(), ec.message().c_str());
         if (_connection)
             _connection->fail(ec.message().c_str());
+        close_socket();
         return;
-        // TODO log
     }
     if (!_connection)
         return;
+    spdlog::trace("[amqp] Received {} bytes, in addition with {} bytes left from last read.", transferred, _buffer_last_remaining);
     auto ptr = _read_buffer;
     auto remaining = transferred + _buffer_last_remaining;
     size_t readLen;
