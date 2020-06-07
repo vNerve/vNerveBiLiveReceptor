@@ -24,13 +24,15 @@ bool compare_worker(const worker_status* lhs, const worker_status* rhs)
 
 // =============================== scheduler_session ===============================
 
-scheduler_session::scheduler_session(const config::config_t config)
+scheduler_session::scheduler_session(const config::config_t config, supervisor_data_handler data_handler, supervisor_server_tick_handler tick_handler)
     : _config(config),
       _min_check_interval(
           std::chrono::milliseconds(
               (*config)["min-check-interval-ms"].as<int>())),
       _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>())),
-      _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>()))
+      _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>())),
+      _data_handler(std::move(data_handler)),
+      _tick_handler(std::move(tick_handler))
 {
     _worker_session = std::make_shared<worker_connection_manager>(
         config,
@@ -45,6 +47,22 @@ scheduler_session::scheduler_session(const config::config_t config)
 
 scheduler_session::~scheduler_session()
 {
+}
+
+void scheduler_session::update_room_lists(std::vector<int>& rooms)
+{
+    auto rooms_set = std::set(rooms.begin(), rooms.end());
+    post(_worker_session->context().get_executor(), [this, rooms_set]() {
+        for (auto& [room_id, room] : _rooms)
+            if (rooms_set.find(room_id) == rooms_set.end())
+                room.active = false;
+        for (auto room_id : rooms_set)
+            if (_rooms.find(room_id) == _rooms.end())
+                _rooms.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(room_id),
+                    std::forward_as_tuple(room_id));
+    });
 }
 
 void scheduler_session::clear_worker_tasks(identifier_t identifier)
@@ -370,12 +388,16 @@ void scheduler_session::handle_buffer(
         {
             it.last_received = current_time;
         });
-        auto crc32 = *reinterpret_cast<unsigned long*>(payload_data + 5);
+        auto crc32 = *reinterpret_cast<checksum_t*>(payload_data + 5);
         auto routing_key = reinterpret_cast<char*>(payload_data) + 9;
         auto routing_key_len = strnlen(routing_key, routing_key_max_size);
         spdlog::debug(LOG_PREFIX "[<{0:016x},{1}>] Received data packet. payload_len={2}, CRC32={3}", identifier, room_id, payload_len - 33, crc32);
 
-        // TODO send out packet to MQ
+        _data_handler(
+            crc32,
+            std::string_view(routing_key, routing_key_len),
+            reinterpret_cast<unsigned char*>(payload_data) + 33,
+            payload_len - 33);
     }
 }
 

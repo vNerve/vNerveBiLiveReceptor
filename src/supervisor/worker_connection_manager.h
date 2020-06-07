@@ -121,5 +121,7 @@ public:
     /// @param msg Message to be sent. Taking ownership of msg
     void send_message(identifier_t identifier, unsigned char* msg, size_t len, supervisor_buffer_deleter deleter);
     void disconnect_worker(identifier_t identifier, bool callback = false);
+
+    boost::asio::io_context& context() { return _context; }
 };
 }  // namespace vNerve::bilibili::worker_supervisor

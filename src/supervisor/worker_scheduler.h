@@ -3,7 +3,6 @@
 #include "type.h"
 #include "worker_connection_manager.h"
 
-#include <boost/asio/detail/socket_ops.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
@@ -12,7 +11,6 @@
 #include <memory>
 
 #include <robin_hood.h>
-#include <vector.hpp>
 
 #include <chrono>
 
@@ -21,11 +19,12 @@ namespace vNerve::bilibili
 
 namespace worker_supervisor
 {
+using supervisor_data_handler = std::function<void(checksum_t, std::string_view, unsigned char const*, size_t)>;
+using supervisor_server_tick_handler = std::function<void()>;
+
 using simple_buffer = std::pair<std::unique_ptr<unsigned char[]>, size_t>;
 template <typename Key, typename Value>
 using unordered_map = robin_hood::unordered_map<Key, Value>;
-template <typename Element>
-using vector = lni::vector<Element>;
 template <typename Element>
 using unordered_set = robin_hood::unordered_set<Element>;
 
@@ -57,10 +56,10 @@ struct worker_status
     int current_connections = 0;
 
     ///
-    /// ÓÃÓÚ¶ÏÏß³Í·£¡£
+    /// ç”¨äºæ–­çº¿æƒ©ç½šã€‚
     std::chrono::system_clock::time_point allow_new_task_after;
     ///
-    /// ÓÃÓÚÅĞ¶ÏÊÇ½«¶ÏÏß³Í·£ÀÛ¼Óµ½ allow_new_task_after »¹ÊÇ´Óµ±Ç°Ê±¼ä¿ªÊ¼¼ÆËã¡£
+    /// ç”¨äºåˆ¤æ–­æ˜¯å°†æ–­çº¿æƒ©ç½šç´¯åŠ åˆ° allow_new_task_after è¿˜æ˜¯ä»å½“å‰æ—¶é—´å¼€å§‹è®¡ç®—ã€‚
     bool punished = false;
 
     worker_status(identifier_t identifier, std::chrono::system_clock::time_point first_received)
@@ -122,19 +121,22 @@ private:
     std::chrono::system_clock::duration _worker_interval_threshold;
     std::chrono::system_clock::duration _worker_penalty;
 
+    supervisor_data_handler _data_handler;
+    supervisor_server_tick_handler _tick_handler;
+
     ///
-    /// Çå¿ÕÊôÓÚ¸Ã worker µÄËùÓĞÈÎÎñ¡£\n
+    /// æ¸…ç©ºå±äºè¯¥ worker çš„æ‰€æœ‰ä»»åŠ¡ã€‚\n
     /// Warning: not notifying the worker! \n
-    /// <b>²»»á¸üĞÂ Worker ºÍ Room µÄ¼ÆÊıÆ÷£¡</b>
+    /// <b>ä¸ä¼šæ›´æ–° Worker å’Œ Room çš„è®¡æ•°å™¨ï¼</b>
     void clear_worker_tasks(identifier_t identifier);
     ///
-    /// ÖØÖÃ worker ×´Ì¬£¬Çå¿Õ worker ÈÎÎñ²¢ÖÃÓÚÎ´³õÊ¼»¯×´Ì¬¡£
+    /// é‡ç½® worker çŠ¶æ€ï¼Œæ¸…ç©º worker ä»»åŠ¡å¹¶ç½®äºæœªåˆå§‹åŒ–çŠ¶æ€ã€‚
     void reset_worker(worker_status* worker);
     ///
-    /// ÖØÖÃ£¨Çå¿ÕÈÎÎñ£©£¬²¢É¾³ı worker¡£
+    /// é‡ç½®ï¼ˆæ¸…ç©ºä»»åŠ¡ï¼‰ï¼Œå¹¶åˆ é™¤ workerã€‚
     void delete_worker(worker_status* worker);
     ///
-    /// ÖØÖÃ¡¢É¾³ı worker£¬²¢¶Ï¿ªµ½ worker µÄÁ¬½Ó¡£
+    /// é‡ç½®ã€åˆ é™¤ workerï¼Œå¹¶æ–­å¼€åˆ° worker çš„è¿æ¥ã€‚
     void delete_and_disconnect_worker(worker_status* worker);
 
     ///
@@ -151,7 +153,7 @@ private:
     void delete_task(identifier_t identifier, room_id_t room_id, bool desc_rank = true);
 
     ///
-    /// Assign a task to a worker. ½«»á¸üĞÂ room Óë worker µÄ¼ÆÊıÆ÷. \n
+    /// Assign a task to a worker. å°†ä¼šæ›´æ–° room ä¸ worker çš„è®¡æ•°å™¨. \n
     /// Assignment packet will be sent to worker.
     void assign_task(worker_status* worker, room_status* room);
 
@@ -159,7 +161,7 @@ private:
     /// Calculate the maximum count of workers connecting to one single room.
     static int calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count);
     ///
-    /// Ç¿ÖÆ¸üĞÂ worker ºÍ room µÄÁ¬½Ó¼ÆÊıÆ÷
+    /// å¼ºåˆ¶æ›´æ–° worker å’Œ room çš„è¿æ¥è®¡æ•°å™¨
     void refresh_counts();
     ///
     /// Check last received interval for workers and tasks. \n
@@ -183,8 +185,10 @@ private:
                             size_t size, std::function<void(unsigned char*)> deleter);
 
 public:
-    scheduler_session(config::config_t config);
+    scheduler_session(config::config_t config, supervisor_data_handler data_handler, supervisor_server_tick_handler tick_handler);
     ~scheduler_session();
+
+    void update_room_lists(std::vector<int>&);
 };
 }  // namespace worker_supervisor
 }

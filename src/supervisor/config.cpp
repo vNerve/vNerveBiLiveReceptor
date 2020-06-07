@@ -22,6 +22,8 @@ const int DEFAULT_READ_BUFFER = 128 * 1024;
 const int DEFAULT_WORKER_INTERVAL_THRESHOLD_SEC = 40;
 const int DEFAULT_WORKER_PENALTY_MIN = 5;
 
+const int DEFAULT_MESSAGE_TTL_SEC = 30;
+
 boost::program_options::options_description create_description()
 {
     // clang-format off
@@ -61,10 +63,16 @@ boost::program_options::options_description create_description()
         //("worker-mq-threads, t", value<int>()->default_value(DEFAULT_WORKER_MQ_THREADS), "Thread count for MQ communicating with workers.")
     ;
 
+    auto descMessage = options_description("Message settings");
+    descMessage.add_options()
+        ("message-ttl-sec,m", value<int>()->default_value(DEFAULT_MESSAGE_TTL_SEC), "Max time to life for a message in deduplicate container.")
+    ;
+
     auto desc = options_description("vNerve Bilibili Livestream chat crawling supervisor");
     desc.add(descGeneric);
     desc.add(descRoomList);
     desc.add(descMQList);
+    desc.add(descMessage);
     desc.add(descWorker);
     return desc;
     // clang-format on
