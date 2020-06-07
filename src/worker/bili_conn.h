@@ -6,7 +6,7 @@
 
 namespace vNerve::bilibili
 {
-class bilibili_session;
+class bilibili_connection_manager;
 class bilibili_connection
 {
 private:
@@ -15,7 +15,7 @@ private:
     size_t _read_buffer_offset = 0;
     size_t _skipping_bytes = 0;
 
-    std::shared_ptr<bilibili_session> _session;
+    std::shared_ptr<bilibili_connection_manager> _session;
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
 
     std::unique_ptr<boost::asio::deadline_timer> _heartbeat_timer;
@@ -28,13 +28,13 @@ private:
 
     void on_join_room_sent(const boost::system::error_code&, size_t,
                            std::string*);
-    void on_heartbeat_sent(const boost::system::error_code&, size_t) const;
+    void on_heartbeat_sent(const boost::system::error_code&, size_t);
     void on_heartbeat_tick(const boost::system::error_code&);
     void on_receive(const boost::system::error_code&, size_t);
 
 public:
     bilibili_connection(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-                        std::shared_ptr<bilibili_session> session, int room_id);
+                        std::shared_ptr<bilibili_connection_manager> session, int room_id);
     ~bilibili_connection();
 
     bilibili_connection(const bilibili_connection& other) = delete;
@@ -67,5 +67,7 @@ public:
         _heartbeat_interval_sec = other._heartbeat_interval_sec;
         return *this;
     }
+
+    void close(bool failed = false);
 };
 }  // namespace vNerve::bilibili

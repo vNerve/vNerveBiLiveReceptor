@@ -74,6 +74,8 @@ struct bilibili_packet_header
     }
 };
 
+class borrowed_message;
+
 ///
 /// 用于处理一次读取获得的缓冲区。
 /// 一次缓冲区可能不完整或包含多个数据包。本函数可以处理此种情况。
@@ -82,12 +84,12 @@ struct bilibili_packet_header
 /// @param transferred 本次读取到的字节数
 /// @param buffer_size 整个缓冲区的大小
 /// @param skipping_size 上次调用获得的返回值的第二项，标识应该跳过的大小
+/// @param data_handler 用于处理发送给 Supervisor 的数据的回调函数。
 /// @return 下次读取结果应该存放的偏移量以及需要传入下一次调用最后一个参数的偏移量。如果本结果含有不完整的数据包，本函数将会将该数据包的一部分复制到 `buf` 开头，则返回的就是数据包片段的尾部位置 + 1.
 std::pair<size_t, size_t> handle_buffer(unsigned char* buf, size_t transferred,
                                         size_t buffer_size,
-                                        size_t skipping_size);
-
-void handle_packet(unsigned char* buf);
+                                        size_t skipping_size,
+                                        std::function<void(borrowed_message*)> data_handler);
 
 std::string generate_heartbeat_packet();
 std::string generate_join_room_packet(int room_id, int proto_ver);
