@@ -36,13 +36,13 @@ scheduler_session::scheduler_session(const config::config_t config, supervisor_d
 {
     _worker_session = std::make_shared<worker_connection_manager>(
         config,
-        std::bind(&scheduler_session::handle_buffer, shared_from_this(),
+        std::bind(&scheduler_session::handle_buffer, this,
                   std::placeholders::_1, std::placeholders::_2,
                   std::placeholders::_3),
-        std::bind(&scheduler_session::check_all_states, shared_from_this()),
-        std::bind(&scheduler_session::handle_new_worker, shared_from_this(),
+        std::bind(&scheduler_session::check_all_states, this),
+        std::bind(&scheduler_session::handle_new_worker, this,
                   std::placeholders::_1),
-        std::bind(&scheduler_session::handle_worker_disconnect, shared_from_this(), std::placeholders::_1));
+        std::bind(&scheduler_session::handle_worker_disconnect, this, std::placeholders::_1));
 }
 
 scheduler_session::~scheduler_session()
@@ -53,15 +53,24 @@ void scheduler_session::update_room_lists(std::vector<int>& rooms)
 {
     auto rooms_set = std::set(rooms.begin(), rooms.end());
     post(_worker_session->context().get_executor(), [this, rooms_set]() {
+        int counter1 = 0, counter2 = 0;
         for (auto& [room_id, room] : _rooms)
             if (rooms_set.find(room_id) == rooms_set.end())
+            {
                 room.active = false;
+                counter1++;
+            }
         for (auto room_id : rooms_set)
             if (_rooms.find(room_id) == _rooms.end())
+            {
                 _rooms.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(room_id),
                     std::forward_as_tuple(room_id));
+                counter2++;
+            }
+        if (counter1 + counter2 > 0)
+            spdlog::info(LOG_PREFIX "Updating room list: deleting {}, adding {}", counter1, counter2);
     });
 }
 

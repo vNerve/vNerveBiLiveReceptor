@@ -13,7 +13,7 @@ class supervisor_global_context
 private:
     mq::amqp_context _amqp_context;
     deduplicate_context _deduplicate_context;
-    worker_supervisor::scheduler_session _scheduler;
+    std::shared_ptr<worker_supervisor::scheduler_session> _scheduler;
 
     info::vtuber_info_updater _room_list_updater;
 

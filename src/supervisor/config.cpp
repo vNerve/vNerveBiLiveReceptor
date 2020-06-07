@@ -12,8 +12,9 @@ const std::string DEFAULT_VNERVE_AMQP_EXCHANGE = "vNerve";
 
 const std::string DEFAULT_VNERVE_SERVER = "http://localhost:6161/";
 const int DEFAULT_VNERVE_UPDATE_INTERVAL_MINUTES = 30;
-const int DEFAULT_VNERVE_UPDATE_TIMEOUT_SEC = 30;
+const int DEFAULT_VNERVE_UPDATE_TIMEOUT_SEC = 10;
 
+const int DEFAULT_WORKER_PORT = 2434;
 const int DEFAULT_WORKER_MQ_THREADS = 1;
 const int DEFAULT_WORKER_RECV_TIMEOUT_SEC = 30;
 const int DEFAULT_WORKER_CHECK_INTERVAL_MS = 5000;
@@ -54,6 +55,7 @@ boost::program_options::options_description create_description()
 
     auto descWorker = options_description("Worker settings");
     descWorker.add_options()
+        ("worker-port", value<int>()->default_value(DEFAULT_WORKER_PORT), "Listening port for workers.")
         ("worker-receive-timeout,t", value<int>()->default_value(DEFAULT_WORKER_RECV_TIMEOUT_SEC), "Timeout for receiving from workers(sec).")
         ("check-interval-ms,c", value<int>()->default_value(DEFAULT_WORKER_CHECK_INTERVAL_MS), "Interval between checking all room/worker state.")
         ("min-check-interval-ms,C", value<int>()->default_value(DEFAULT_WORKER_MIN_CHECK_INTERVAL_MS), "Minimum interval between checking all room/worker state.")

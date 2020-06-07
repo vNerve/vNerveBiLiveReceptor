@@ -105,7 +105,7 @@ using tasks_by_room_id_t = tasks_set::nth_index<tasks_by_room_id>::type;
 using rooms_map = unordered_map<room_id_t, room_status>;
 using workers_map = unordered_map<identifier_t, worker_status>;
 
-class scheduler_session : std::enable_shared_from_this<scheduler_session>
+class scheduler_session
 {
 private:
     std::shared_ptr<worker_connection_manager> _worker_session;

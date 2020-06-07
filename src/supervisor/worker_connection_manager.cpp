@@ -111,10 +111,10 @@ worker_connection_manager::worker_connection_manager(
     supervisor_buffer_handler buffer_handler,
     supervisor_tick_handler tick_handler,
     supervisor_new_worker_handler new_worker_handler,
-     supervisor_worker_disconnect_handler disconnect_handler)
+    supervisor_worker_disconnect_handler disconnect_handler)
     : _config(config),
       _guard(_context.get_executor()),
-      _acceptor(_context),
+      _acceptor(_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), (*config)["worker-port"].as<int>())),
       _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
       _timer_interval_ms((*config)["check-interval-ms"].as<int>()),
       _read_buffer_size((*config)["read-buffer"].as<size_t>()),
@@ -156,7 +156,7 @@ start_accept()
     auto socket = std::make_shared<boost::asio::ip::tcp::socket>(_context);
     _acceptor.async_accept(
         *socket,
-        boost::bind(&worker_connection_manager::on_accept, shared_from_this(),
+        boost::bind(&worker_connection_manager::on_accept, this,
                     boost::asio::placeholders::error, socket));
 }
 
@@ -207,7 +207,7 @@ void worker_connection_manager::reschedule_timer()
     _timer->expires_from_now(
         boost::posix_time::milliseconds(_timer_interval_ms));
     _timer->async_wait(boost::bind(&worker_connection_manager::on_timer_tick,
-                                   shared_from_this(),
+                                   this,
                                    boost::asio::placeholders::error));
 }
 

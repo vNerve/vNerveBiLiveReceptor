@@ -74,7 +74,6 @@ public:
 };
 
 class worker_connection_manager
-    : public std::enable_shared_from_this<worker_connection_manager>
 {
 private:
     config::config_t _config;

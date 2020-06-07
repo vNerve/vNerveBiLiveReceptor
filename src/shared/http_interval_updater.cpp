@@ -129,14 +129,13 @@ void http_interval_updater::setup_curl()
 
     auto str = on_request_payload();
     if (str)
-    {
         curl_easy_setopt(_curl, CURLOPT_POSTFIELDS, str);
-        curl_easy_getinfo(_curl, CURLINFO_CONTENT_TYPE, on_request_content_type());
-    }
 
     struct curl_slist* chunk = NULL;
     // Disable Expect: 100-continue
     chunk = curl_slist_append(chunk, "Expect:");
+    if (str)
+        chunk = curl_slist_append(chunk, (std::string("Content-Type:") + on_request_content_type()).c_str());
 
     str = on_request_accept();
     if (str)
