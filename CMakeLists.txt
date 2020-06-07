@@ -20,19 +20,16 @@ set(WORKER_SOURCE_FILES
     "src/worker/bilibili_connection_manager.cpp"
     "src/worker/bili_conn.cpp"
     "src/worker/bili_packet.cpp"
+    "src/worker/bili_json.cpp"
     "src/worker/supervisor_connection.cpp"
     "src/worker/supervisor_session.cpp"
     "src/worker/simple_worker_proto_generator.cpp"
 
-    "proto/cpp/vNerve/bilibili/live/message.pb.cc"
     "proto/cpp/vNerve/bilibili/live/room_message.pb.cc"
-    "proto/cpp/vNerve/bilibili/live/user_message.pb.cc"
-)
-
+    "proto/cpp/vNerve/bilibili/live/user_message.pb.cc")
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
-    vendor
     src/worker
     src/shared
     vendor/
@@ -74,6 +71,7 @@ endif()
 conan_cmake_run(REQUIRES
                     "boost/1.72.0"
                     "zlib/1.2.11"
+                    "fmt/6.1.2"
                     "spdlog/1.5.0"
                     "rapidjson/1.1.0"
                     "protobuf/3.11.4@charliejiang/stable"
@@ -108,8 +106,3 @@ target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::libcurl
                         CONAN_PKG::amqp-cpp
                         )
-
-if (WIN32)
-    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601")
-    target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
-endif()
