@@ -1,6 +1,6 @@
 #pragma once
 
-#include "http_interval_updater.cpp"
+#include "http_interval_updater.h"
 #include <boost/program_options/variables_map.hpp>
 
 #include <vector>
@@ -33,6 +33,6 @@ public:
     vtuber_info_updater(
         std::shared_ptr<boost::program_options::variables_map> options,
         vtuber_info_update_callback callback);
-    ~vtuber_info_updater() override;
+    ~vtuber_info_updater() override = default;
 };
 }

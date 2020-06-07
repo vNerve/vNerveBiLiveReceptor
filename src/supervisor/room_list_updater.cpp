@@ -3,6 +3,7 @@
 
 #include <rapidjson/document.h>
 #include <utility>
+#include <spdlog/spdlog.h>
 
 namespace vNerve::bilibili::info
 {
@@ -17,10 +18,6 @@ vtuber_info_updater::vtuber_info_updater(
     _user_agent = std::string("vNerve Bilibili Live Receptor") + VERSION;
 }
 
-vtuber_info_updater::~vtuber_info_updater()
-{
-
-}
 const std::string bilibili_info_request_body = R"EOF(
 {"query":"{allBilibiliInfo{liveInfo{roomId}}}"}
 )EOF";
