@@ -5,6 +5,11 @@ namespace vNerve::bilibili::config
 // Default options.
 const int DEFAULT_HEARTBEAT_TIMEOUT_SEC = 40;
 const std::string DEFAULT_CHAT_SERVER = "broadcastlv.chat.bilibili.com";
+const std::string DEFAULT_CHAT_SERVER_CONFIG_URL = "https://api.live.bilibili.com/room/v1/Danmu/getConf";
+const std::string DEFAULT_CHAT_SERVER_CONFIG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36";
+const std::string DEFAULT_CHAT_SERVER_CONFIG_REFERER = "https://live.bilibili.com/";
+const int DEFAULT_CHAT_SERVER_CONFIG_INTERVAL_MIN = 15;
+const int DEFAULT_CHAT_SERVER_CONFIG_TIMEOUT_SEC = 15;
 const int DEFAULT_CHAT_SERVER_PORT = 2243;
 const int DEFAULT_CHAT_SERVER_PROTOCOL_VER = 2;
 
@@ -38,6 +43,11 @@ boost::program_options::options_description create_description()
         ("chat-server,s", value<std::string>()->default_value(DEFAULT_CHAT_SERVER), "Bilibili live chat server in TCP mode.")
         ("chat-server-port,p", value<int>()->default_value(DEFAULT_CHAT_SERVER_PORT), "Bilibili live chat server port.")
         ("protocol-ver,V", value<int>()->default_value(DEFAULT_CHAT_SERVER_PROTOCOL_VER),"Bilibili live chat server protocol version.")
+        ("chat-config-url", value<std::string>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_URL),"Bilibili live chat config URL.")
+        ("chat-config-user-agent", value<std::string>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_USER_AGENT),"User-Agent used in requesting bilibili live chat config URL.")
+        ("chat-config-referer", value<std::string>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_REFERER),"Referer used in requesting bilibili chat config URL.")
+        ("chat-config-interval-min", value<int>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_INTERVAL_MIN),"Interval between requesting bilibili chat config URL.")
+        ("chat-config-timeout-sec", value<int>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_TIMEOUT_SEC),"Timeout requesting bilibili chat config URL.")
     ;
 
     auto descSupervisor = options_description("vNerve bilibili chat supervisor options");

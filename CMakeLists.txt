@@ -14,9 +14,11 @@ set(WORKER_SOURCE_FILES
     "src/shared/simple_worker_proto.cpp"
     "src/shared/simple_worker_proto_handler.cpp"
     "src/shared/asio_socket_write_helper.cpp"
+    "src/shared/http_interval_updater.cpp"
 
     "src/worker/main.cpp"
     "src/worker/config.cpp"
+    "src/worker/bilibili_token_updater.cpp"
     "src/worker/bilibili_connection_manager.cpp"
     "src/worker/bili_conn.cpp"
     "src/worker/bili_packet.cpp"
@@ -97,6 +99,7 @@ target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::spdlog
                         CONAN_PKG::rapidjson
                         CONAN_PKG::protobuf
+                        CONAN_PKG::libcurl
                         )
 target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::boost

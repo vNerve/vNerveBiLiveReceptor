@@ -41,6 +41,7 @@ void vtuber_info_updater::on_updated(std::string_view body)
     }
     if (!document.IsObject())
     {
+        spdlog::warn("[room_list_upd] Invalid vNerve GraphQL Response: Root element is not JSON object.");
         return;
     }
     auto data_iter = document.FindMember("data");

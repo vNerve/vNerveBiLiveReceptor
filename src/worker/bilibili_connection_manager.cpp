@@ -19,6 +19,8 @@ vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const
       _shared_heartbeat_buffer(
           boost::asio::buffer(_shared_heartbeat_buffer_str))
 {
+    _server_addr = (*_options)["chat-server"].as<std::string>();
+    _server_port_str = std::to_string((*_options)["chat-server-port"].as<int>());
     int threads = (*_options)["threads"].as<int>();
     spdlog::info("[session] Creating session with thread pool size={}",
                  threads);
@@ -40,17 +42,15 @@ vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
             ex.code().value(), ex.code().message(), ex.what());
     }
 }
+
 void vNerve::bilibili::bilibili_connection_manager::open_connection(const int room_id)
 {
-    auto& server_addr = (*_options)["chat-server"].as<std::string>();
-    auto port = std::to_string((*_options)["chat-server-port"].as<int>());
-
     spdlog::info("[session] Connecting room {}", room_id);
     spdlog::debug(
         "[session] Connecting room {} with server {}:{}, resolving DN.",
-        room_id, server_addr, port);
+        room_id, _server_addr, _server_port_str);
     _resolver.async_resolve(
-        server_addr, port,
+        _server_addr, _server_port_str,
         boost::bind(&bilibili_connection_manager::on_resolved, this,
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::iterator, room_id));

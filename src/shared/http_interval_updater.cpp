@@ -118,6 +118,7 @@ size_t http_interval_updater_receive_content_length(char* buf, size_t size, size
 void http_interval_updater::setup_curl()
 {
     //curl_easy_setopt(_curl, CURLOPT_VERBOSE, 1L);
+    curl_easy_setopt(_curl, CURLOPT_COOKIELIST, "ALL");
     auto request_url = on_request_url();
     auto request_method = on_request_method();
     auto user_agent = on_user_agent();

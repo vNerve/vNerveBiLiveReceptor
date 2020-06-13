@@ -32,6 +32,9 @@ private:
     boost::thread_group _pool;
     boost::asio::ip::tcp::resolver _resolver;
 
+    std::string _server_addr;
+    std::string _server_port_str;
+
     std::unordered_map<int, bilibili_connection> _connections;
     int _max_connections;
 
@@ -58,6 +61,12 @@ private:
 public:
     bilibili_connection_manager(config::config_t, room_event_handler on_room_failed, room_data_handler on_room_data);
     ~bilibili_connection_manager();
+
+    void set_chat_server(const std::string& addr, int port)
+    {
+        _server_addr = addr;
+        _server_port_str = std::to_string(port);
+    }
 
     void open_connection(int room_id);
     void close_connection(int room_id);
