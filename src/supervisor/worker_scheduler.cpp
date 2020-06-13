@@ -153,10 +153,10 @@ void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, 
     delete_task<tasks_by_identifier_and_room_id>(task_iter, desc_rank);
 }
 
-void scheduler_session::assign_task(worker_status* worker, room_status* room)
+void scheduler_session::assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now)
 {
     SPDLOG_TRACE(LOG_PREFIX "Trying to assign task <{0:016x},{1}>", worker->identifier, room->room_id);
-    auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id);
+    auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id, now);
     if (!inserted) return;
     send_assign(worker->identifier, room->room_id);
     worker->current_connections++;
@@ -193,7 +193,9 @@ void scheduler_session::check_worker_task_interval()
             delete_and_disconnect_worker(&worker);
         }
     for (auto it = _tasks.begin(); it != _tasks.end();)
-        if (now - it->last_received <= _worker_interval_threshold)
+    {
+        auto last_recv = it->last_received;
+        if (now - last_recv < _worker_interval_threshold)
             ++it;
         else
         {
@@ -202,6 +204,7 @@ void scheduler_session::check_worker_task_interval()
             it = delete_task<tasks_by_identifier_and_room_id>(it);
             spdlog::warn(LOG_PREFIX "[<{0:016x},{1}>] Task exceeding max interval, unassigning!", identifier, room_id);
         }
+    }
 }
 
 void scheduler_session::send_assign(identifier_t identifier, room_id_t room_id)
@@ -304,7 +307,7 @@ void scheduler_session::check_all_states()
                     break;
                 if (worker->current_connections > worker->max_rooms)
                     continue;
-                assign_task(worker, &room); // Will not actually assign if the task exists, so safe.
+                assign_task(worker, &room, current_time); // Will not actually assign if the task exists, so safe.
                 --underkill;
             }
         }

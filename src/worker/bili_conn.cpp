@@ -21,7 +21,7 @@ vNerve::bilibili::bilibili_connection::bilibili_connection(
 {
     spdlog::info("[conn] [room={}] Established connection to server.", room_id);
     _read_buffer_ptr =
-        std::unique_ptr<unsigned char[]>(new unsigned char[_read_buffer_size]);
+        std::unique_ptr<unsigned char[]>(new unsigned char[_read_buffer_size + 1]); // extra space for \0
     start_read();
 
     auto str = new std::string(generate_join_room_packet(

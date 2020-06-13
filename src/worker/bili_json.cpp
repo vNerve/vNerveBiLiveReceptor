@@ -11,6 +11,8 @@
 #include <rapidjson/allocators.h>
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
+#include <rapidjson/error/error.h>
+#include <rapidjson/error/en.h>
 #include <google/protobuf/arena.h>
 #include <spdlog/spdlog.h>
 
@@ -82,22 +84,32 @@ public:
     {
         _borrowed_bilibili_message._message->Clear();
         _borrowed_bilibili_message.crc32 = CRC::Calculate(buf, length, crc_lookup_table);  // 这个库又会做多少内存分配呢（已经不在乎了
-        _document.ParseInsitu(buf);
+        rapidjson::ParseResult result = _document.ParseInsitu(buf);
+        if (result.IsError())
+        {
+            spdlog::warn("[bili_json] Bilibili JSON: Failed to parse JSON:{} ({})", rapidjson::GetParseError_En(result.Code()), result.Offset());
+            return nullptr;
+        }
+        if (!_document.IsObject())
+        {
+            spdlog::warn("[bili_json] Bilibili JSON: Root element is not JSON object.");
+            return nullptr;
+        }
 
         _borrowed_bilibili_message._message->set_room_id(room_id);
-        if (!(_document.HasMember("cmd")
-              && _document["cmd"].IsString()))
+        auto cmd_iter = _document.FindMember("cmd");
+        if (cmd_iter == _document.MemberEnd() || !cmd_iter->value.IsString())
         {
             SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed");
             return nullptr;
         }
         // TODO: 使用boost::multiindex配合robin_hood::hash魔改robin_hood::unordered_map来避免无意义的内存分配
-        string cmd(_document["cmd"].GetString(), _document["cmd"].GetStringLength());
+        string cmd(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength());
         if ((command.find(cmd) != command.end())
             && command[cmd](room_id, _document, _borrowed_bilibili_message, &_arena))
             return &_borrowed_bilibili_message;
         // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
-        SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: " + cmd);
+        SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: {}", cmd);
         return nullptr;
     }
     ~parse_context() {}
@@ -144,19 +156,19 @@ CMD(DANMU_MSG)
     ASSERT_TRACE(document["info"].IsArray())
     // 数组数量不对是结构性错误
     // 但b站很有可能在不改变先前字段的情况下添加字段
-    ASSERT_TRACE(document["info"].MemberCount() >= 15);
+    ASSERT_TRACE(document["info"].Size() >= 15);
     auto const& info = document["info"];  // 或 document["info"].GetArray() ?
     ASSERT_TRACE(info[0].IsArray())
-    ASSERT_TRACE(info[0].MemberCount() >= 11)
+    ASSERT_TRACE(info[0].Size() >= 11)
     auto const& basic_info = info[0];
     ASSERT_TRACE(info[2].IsArray())
-    ASSERT_TRACE(info[2].MemberCount() >= 8)
+    ASSERT_TRACE(info[2].Size() >= 8)
     auto const& user_info = info[2];
     ASSERT_TRACE(info[3].IsArray())
-    ASSERT_TRACE(info[3].MemberCount() >= 6)
+    ASSERT_TRACE(info[3].Size() >= 6)
     auto const& medal_info = info[3];
     ASSERT_TRACE(info[4].IsArray())
-    ASSERT_TRACE(info[4].MemberCount() >= 4)
+    ASSERT_TRACE(info[4].Size() >= 4)
     auto const& user_level = info[4];
     // 以下变量类型均为 T*
     auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);

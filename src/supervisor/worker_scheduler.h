@@ -40,8 +40,8 @@ struct room_task
     //std::weak_ptr<worker_status> worker; // is use shared_ptr + weak_ptr better than looking up unordered_map?
     //std::weak_ptr<room_status> room;
 
-    room_task(identifier_t identifier, room_id_t room_id)
-        : identifier(identifier), room_id(room_id) {}
+    room_task(identifier_t identifier, room_id_t room_id, std::chrono::system_clock::time_point now)
+        : identifier(identifier), room_id(room_id), last_received(now) {}
 };
 
 struct worker_status
@@ -155,7 +155,7 @@ private:
     ///
     /// Assign a task to a worker. 将会更新 room 与 worker 的计数器. \n
     /// Assignment packet will be sent to worker.
-    void assign_task(worker_status* worker, room_status* room);
+    void assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now);
 
     ///
     /// Calculate the maximum count of workers connecting to one single room.

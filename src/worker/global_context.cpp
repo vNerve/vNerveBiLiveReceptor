@@ -1,4 +1,5 @@
 #include "global_context.h"
+#include <spdlog/spdlog.h>
 
 namespace vNerve::bilibili
 {
@@ -27,6 +28,7 @@ void worker_global_context::join()
 
 void worker_global_context::on_room_failed(int room_id)
 {
+    spdlog::info("[g_ctxt] Sending Room failed message. rid={}", room_id);
     _session.on_room_failed(room_id);
 }
 
@@ -37,11 +39,13 @@ void worker_global_context::on_room_data(int room_id, const borrowed_message* ms
 
 void worker_global_context::on_request_connect_room(int room_id)
 {
+    spdlog::info("[g_ctxt] Connecting to room. rid={}", room_id);
     _conn_manager.open_connection(room_id);
 }
 
 void worker_global_context::on_request_disconnect_room(int room_id)
 {
+    spdlog::info("[g_ctxt] Disconnecting room. rid={}", room_id);
     _conn_manager.close_connection(room_id);
 }
 

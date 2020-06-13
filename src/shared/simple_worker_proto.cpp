@@ -62,8 +62,8 @@ std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_mes
         // 到此处我们拥有一个完整的数据包：[begin, begin + length)
 
         handler(begin + simple_message_header_length, length);
-        remaining -= length;
-        buf += length;
+        remaining -= (length + simple_message_header_length);
+        begin += (length + simple_message_header_length);
     }
 
     return std::pair(0, 0);  // read from starting, and skip no bytes.

@@ -125,10 +125,10 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
     }
 
     auto payload_size = header->length() - sizeof(bilibili_packet_header);
-    spdlog::trace(
-        "[packet] [{:p}] Packet header: len={}, proto_ver={}, op_code={}, seq_id={}",
-        buf, header->length(), header->protocol_version(),
-        header->op_code(), header->sequence_id());
+    //spdlog::trace(
+    //    "[packet] [{:p}] Packet header: len={}, proto_ver={}, op_code={}, seq_id={}",
+    //    buf, header->length(), header->protocol_version(),
+    //    header->op_code(), header->sequence_id());
 
     switch (header->protocol_version())
     {
@@ -170,8 +170,10 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
             spdlog::trace("[packet] [{:p}] Received JSON data. len=",
                           buf, payload_size);
 
+            *reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header) + payload_size) = '\0';
             const borrowed_message* msg = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)), payload_size, room_id);
-            handler(msg);
+            if (msg)
+                handler(msg);
         }
         break;
         case heartbeat_resp:

@@ -55,13 +55,7 @@ void asio_socket_write_helper::start_async_write()
 
 void asio_socket_write_helper::on_written(const boost::system::error_code& ec, size_t byte_transferred, int buffer_count)
 {
-    buffer_count = std::min(buffer_count, static_cast<int>(_write_queue.size()));
-    for (int i = 0; i < buffer_count; i++)
-    {
-        auto& buf_iter = _write_queue.front();
-        std::get<2>(buf_iter)(std::get<0>(buf_iter));
-        _write_queue.pop_front();
-    }
+    delete_first_n_buffers(buffer_count);
 
     if (ec.value() == boost::asio::error::operation_aborted)
         return;

@@ -118,7 +118,7 @@ worker_connection_manager::worker_connection_manager(
     supervisor_worker_disconnect_handler disconnect_handler)
     : _config(config),
       _guard(_context.get_executor()),
-      _acceptor(_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), (*config)["worker-port"].as<int>())),
+      _acceptor(_context, boost::asio::ip::tcp::v4()),
       _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
       _timer_interval_ms((*config)["check-interval-ms"].as<int>()),
       _read_buffer_size((*config)["read-buffer"].as<size_t>()),
@@ -130,6 +130,18 @@ worker_connection_manager::worker_connection_manager(
 {
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
+
+    auto port = (*config)["worker-port"].as<int>();
+    try
+    {
+        _acceptor.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port));
+        _acceptor.listen();
+    }
+    catch (boost::system::system_error& ex)
+    {
+        spdlog::critical(LOG_PREFIX "Failed to listen on port {}! err:{}:{}", port, ex.code().value(), ex.code().message());
+        throw;
+    }
 
     start_accept();
     reschedule_timer();
