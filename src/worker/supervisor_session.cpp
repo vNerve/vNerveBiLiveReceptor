@@ -85,6 +85,11 @@ void supervisor_session::on_room_failed(room_id_t room_id)
     _connection.publish_msg(packet, packet_length, deleter_unsigned_char_array);
 }
 
+void supervisor_session::join()
+{
+    _connection.join();
+}
+
 void supervisor_session::on_data(unsigned char* data, size_t len, supervisor_buffer_deleter deleter)
 {
     if (len < simple_message_header_length)

@@ -40,6 +40,7 @@ public:
 
     void on_message(room_id_t room_id, borrowed_message const* msg);
     void on_room_failed(room_id_t room_id);
+    void join();
 
     supervisor_session(config::config_t config, room_operation_handler on_open_connection, room_operation_handler on_close_connection);
     ~supervisor_session();

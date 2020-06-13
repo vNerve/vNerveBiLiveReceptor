@@ -56,5 +56,6 @@ public:
 
     // Take the ownership of msg.
     void publish_msg(unsigned char* msg, size_t len, supervisor_buffer_deleter deleter);
+    void join();
 };
 }  // namespace vNerve::bilibili::live::worker_supervisor

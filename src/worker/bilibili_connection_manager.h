@@ -14,7 +14,7 @@ namespace vNerve::bilibili
 class borrowed_message;
 
 using room_event_handler = std::function<void(int)>;
-using room_data_handler = std::function<void(int, borrowed_message*)>;
+using room_data_handler = std::function<void(int, const borrowed_message*)>;
 
 ///
 /// Global network session for Bilibili Livestream chat crawling.
@@ -30,6 +30,7 @@ private:
 
     std::string _server_addr;
     std::string _server_port_str;
+    std::string _token;
 
     std::unordered_map<int, bilibili_connection> _connections;
     int _max_connections;
@@ -47,7 +48,7 @@ private:
         std::shared_ptr<boost::asio::ip::tcp::socket>, int);
 
     void on_room_failed(int room_id) { _on_room_failed(room_id); }
-    void on_room_data(int room_id, borrowed_message* msg) { _on_room_data(room_id, msg); }
+    void on_room_data(int room_id, const borrowed_message* msg) { _on_room_data(room_id, msg); }
     /// called on a room normally closes (usually by an unassignment)
     void on_room_closed(int room_id);
 
@@ -58,10 +59,11 @@ public:
     bilibili_connection_manager(config::config_t, room_event_handler on_room_failed, room_data_handler on_room_data);
     ~bilibili_connection_manager();
 
-    void set_chat_server(const std::string& addr, int port)
+    void set_chat_server_config(const std::string& addr, int port, std::string_view token)
     {
         _server_addr = addr;
         _server_port_str = std::to_string(port);
+        _token = token;
     }
 
     void open_connection(int room_id);

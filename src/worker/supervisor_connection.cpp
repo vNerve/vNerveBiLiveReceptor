@@ -49,6 +49,11 @@ void supervisor_connection::publish_msg(unsigned char* msg, size_t len,
     _write_helper.write(msg, len, deleter);
 }
 
+void supervisor_connection::join()
+{
+    _thread.join();
+}
+
 void supervisor_connection::connect()
 {
     if (_socket)

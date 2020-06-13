@@ -13,13 +13,14 @@ namespace vNerve::bilibili
 {
 const size_t zlib_buffer_size = 256 * 1024;
 
-void handle_packet(unsigned char* buf, const std::function<void(borrowed_message*)>&);
+void handle_packet(unsigned char* buf, worker_supervisor::room_id_t, const message_handler&);
 
 std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
                                         const size_t transferred,
                                         const size_t buffer_size,
                                         const size_t skipping_size,
-                                        std::function<void(borrowed_message*)> data_handler)
+                                        worker_supervisor::room_id_t room_id,
+                                        message_handler data_handler)
 {
     spdlog::trace(
         "[bili_buffer] [{:p}] Handling buffer: transferred={}, buffer_size={}, skipping_size={}.",
@@ -82,7 +83,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
 
         // 到此处我们拥有一个完整的数据包：[begin, begin + length)
 
-        handle_packet(begin, data_handler);
+        handle_packet(begin, room_id, data_handler);
         remaining -= length;
         begin += length;
     }
@@ -112,7 +113,7 @@ std::tuple<unsigned char*, int, unsigned long> decompress_buffer(
     return {result == Z_OK ? zlib_buf : nullptr, result, out_size};
 }
 
-void handle_packet(unsigned char* buf, const std::function<void(borrowed_message*)>& handler)
+void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, const message_handler& handler)
 {
     auto header = reinterpret_cast<bilibili_packet_header*>(buf);
     if (header->header_length() != sizeof(bilibili_packet_header))
@@ -157,7 +158,7 @@ void handle_packet(unsigned char* buf, const std::function<void(borrowed_message
             }
             return;
         }
-        handle_buffer(decompressed, out_size, out_size, 0, handler);
+        handle_buffer(decompressed, out_size, out_size, 0, room_id, handler);
         //handle_packet(decompressed);
     }
     break;
@@ -168,9 +169,9 @@ void handle_packet(unsigned char* buf, const std::function<void(borrowed_message
         {
             spdlog::trace("[packet] [{:p}] Received JSON data. len=",
                           buf, payload_size);
-            // TODO: call serialize
-            // borrowed_buffer protobuf = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)));
-            // TODO: pack and send
+
+            const borrowed_message* msg = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)), payload_size, room_id);
+            handler(msg);
         }
         break;
         case heartbeat_resp:
@@ -192,7 +193,6 @@ void handle_packet(unsigned char* buf, const std::function<void(borrowed_message
             // TODO send
         }
         case join_room_resp:
-            // TODO notification?
             spdlog::trace("[packet] [{:p}] Successfully joined room.", buf);
             break;
         default:
@@ -214,12 +214,12 @@ std::string generate_heartbeat_packet()
 }
 
 const char* join_room_json_fmt =
-    "{\"clientver\": \"1.6.3\",\"platform\": \"web\",\"protover\": %d,\"roomid\": %d,\"uid\": 0,\"type\": 2}";
-const size_t join_room_json_max_length = 128;
-std::string generate_join_room_packet(int room_id, int proto_ver)
+    R"({"clientver":"1.6.3","platform":"web","protover":%d,"roomid":%d,"uid":0,"type":2, "auth":"%s"})";
+const size_t join_room_json_max_length = 256;
+std::string generate_join_room_packet(int room_id, int proto_ver, std::string_view token)
 {
     char payload[join_room_json_max_length];
-    sprintf_s(payload, join_room_json_fmt, proto_ver, room_id);
+    sprintf_s(payload, join_room_json_fmt, proto_ver, room_id, token.data());
     size_t payload_size = strnlen(payload, join_room_json_max_length);
     auto header = bilibili_packet_header();
     header.length(header.header_length() + payload_size);

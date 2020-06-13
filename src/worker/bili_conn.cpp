@@ -9,7 +9,7 @@
 
 vNerve::bilibili::bilibili_connection::bilibili_connection(
     const std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-    bilibili_connection_manager* session, int room_id)
+    bilibili_connection_manager* session, int room_id, std::string_view token)
     : _read_buffer_size(session->get_options()["read-buffer"].as<size_t>()),
       _session(session),
       _socket(socket),
@@ -25,7 +25,7 @@ vNerve::bilibili::bilibili_connection::bilibili_connection(
     start_read();
 
     auto str = new std::string(generate_join_room_packet(
-        room_id, session->get_options()["protocol-ver"].as<int>()));
+        room_id, session->get_options()["protocol-ver"].as<int>(), token));
     auto buffer = boost::asio::buffer(*str);
     spdlog::debug(
         "[conn] [room={}] Sending handshake packet with payload(len={}): {:Xs}",
@@ -182,8 +182,8 @@ void vNerve::bilibili::bilibili_connection::on_receive(
     try
     {
         auto [new_offset, new_skipping_bytes] =
-            handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size,
-                          _skipping_bytes, std::bind(&bilibili_connection_manager::on_room_data, _session, _room_id, std::placeholders::_1));
+            handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size, _skipping_bytes,
+                          _room_id, std::bind(&bilibili_connection_manager::on_room_data, _session, _room_id, std::placeholders::_1));
         _read_buffer_offset = new_offset;
         _skipping_bytes = new_skipping_bytes;
     }

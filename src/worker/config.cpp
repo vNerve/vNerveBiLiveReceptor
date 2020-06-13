@@ -17,7 +17,7 @@ const int DEFAULT_READ_BUFFER = 128 * 1024;
 const int DEFAULT_THREADS = 1;
 
 const std::string DEFAULT_SUPERVISOR_HOST = "localhost";
-const int DEFAULT_SUPERVISOR_PORT = 2434;
+const int DEFAULT_SUPERVISOR_PORT = 2434; // see also worker/config.cpp
 const int DEFAULT_MAX_ROOMS = 500;
 const int DEFAULT_MAX_RETRY_SEC = 60;
 

@@ -34,7 +34,7 @@ private:
 
 public:
     bilibili_connection(std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-                        bilibili_connection_manager* session, int room_id);
+                        bilibili_connection_manager* session, int room_id, std::string_view token);
     ~bilibili_connection();
 
     bilibili_connection(const bilibili_connection& other) = delete;

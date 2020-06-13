@@ -8,10 +8,10 @@
 #include <spdlog/spdlog.h>
 
 vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const config::config_t options, room_event_handler on_room_failed, room_data_handler on_room_data)
-    : _context((*_options)["threads"].as<int>()),
+    : _context((*options)["threads"].as<int>()),
       _guard(_context.get_executor()),
       _resolver(_context),
-      _max_connections((*_options)["max-rooms"].as<int>()),
+      _max_connections((*options)["max-rooms"].as<int>()),
       _on_room_failed(std::move(on_room_failed)),
       _on_room_data(std::move(on_room_data)),
       _options(options),
@@ -122,7 +122,7 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
     _connections.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(room_id),
-        std::forward_as_tuple(socket, this, room_id)); // Construct connection obj.
+        std::forward_as_tuple(socket, this, room_id, _token)); // Construct connection obj.
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)
