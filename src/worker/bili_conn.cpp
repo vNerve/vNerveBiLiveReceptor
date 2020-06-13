@@ -9,7 +9,7 @@
 
 vNerve::bilibili::bilibili_connection::bilibili_connection(
     const std::shared_ptr<boost::asio::ip::tcp::socket> socket,
-    const std::shared_ptr<bilibili_connection_manager> session, int room_id)
+    bilibili_connection_manager* session, int room_id)
     : _read_buffer_size(session->get_options()["read-buffer"].as<size_t>()),
       _session(session),
       _socket(socket),

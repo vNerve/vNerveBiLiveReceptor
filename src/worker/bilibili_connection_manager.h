@@ -9,10 +9,6 @@
 #include <memory>
 #include <string>
 
-#include <boost/asio.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/thread.hpp>
-
 namespace vNerve::bilibili
 {
 class borrowed_message;
@@ -23,7 +19,7 @@ using room_data_handler = std::function<void(int, borrowed_message*)>;
 ///
 /// Global network session for Bilibili Livestream chat crawling.
 /// This should be created only once through the whole program.
-class bilibili_connection_manager : public std::enable_shared_from_this<bilibili_connection_manager>
+class bilibili_connection_manager
 {
     friend class bilibili_connection;
 private:

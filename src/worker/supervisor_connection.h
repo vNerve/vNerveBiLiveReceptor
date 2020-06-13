@@ -7,19 +7,13 @@
 #include <boost/thread.hpp>
 #include <boost/asio.hpp>
 
-#include <deque>
-#include <concurrentqueue.h>
-
 namespace vNerve::bilibili::worker_supervisor
 {
 using supervisor_connected_handler = std::function<void()>;
 using supervisor_buffer_handler = std::function<void(unsigned char*, size_t)>;
 using supervisor_buffer_deleter = std::function<void(unsigned char*)>;
-using supervisor_buffer_owned = std::pair<boost::asio::mutable_buffer, supervisor_buffer_deleter>;
 
-inline const int MAX_WRITE_BATCH = 10;
-
-class supervisor_connection : std::enable_shared_from_this<supervisor_connection>
+class supervisor_connection
 {
 private:
     config::config_t _config;

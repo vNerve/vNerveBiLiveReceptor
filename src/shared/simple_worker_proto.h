@@ -1,4 +1,6 @@
 #pragma once
+#include "type.h"
+
 #include <utility>
 #include <functional>
 
@@ -16,8 +18,11 @@ inline const unsigned char assign_room_code =   static_cast<unsigned char>(0x100
 inline const unsigned char unassign_room_code = static_cast<unsigned char>(0x10000002);
 
 inline const size_t simple_message_header_length = sizeof(unsigned int);
-inline const unsigned int worker_ready_payload_length = 1 + 4;
-inline const unsigned int assign_unassign_payload_length = 1 + 4;
+inline const size_t crc_32_length = sizeof(checksum_t);
+inline const size_t room_id_length = sizeof(room_id_t);
+inline const unsigned int worker_ready_payload_length = 1 + room_id_length;
+inline const unsigned int assign_unassign_payload_length = 1 + room_id_length;
+inline const unsigned int worker_data_payload_header_length = 1 + room_id_length + crc_32_length + routing_key_max_size;
 
 /*
  * All big endian.

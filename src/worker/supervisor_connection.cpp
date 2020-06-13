@@ -10,8 +10,8 @@ supervisor_connection::supervisor_connection(const config::config_t config,
     : _config(config),
       _guard(_context.get_executor()),
       _resolver(_context),
-      _proto_handler("[sv_conn]", nullptr, ((*config)["read-buffer"].as<size_t>()), buffer_handler, boost::bind(&supervisor_connection::on_failed, shared_from_this())),
-      _write_helper("[sv_conn]", nullptr, boost::bind(&supervisor_connection::on_failed, shared_from_this())),
+      _proto_handler("[sv_conn]", nullptr, ((*config)["read-buffer"].as<size_t>()), buffer_handler, boost::bind(&supervisor_connection::on_failed, this)),
+      _write_helper("[sv_conn]", nullptr, boost::bind(&supervisor_connection::on_failed, this)),
       _timer(_context),
       _retry_interval_sec((*config)["retry-interval-sec"].as<int>()),
       _supervisor_host((*config)["supervisor-host"].as<std::string>()),
@@ -19,7 +19,7 @@ supervisor_connection::supervisor_connection(const config::config_t config,
       _connected_handler(connected_handler)
 {
     _thread = boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
-    post(_context, boost::bind(&supervisor_connection::connect, shared_from_this()));
+    post(_context, boost::bind(&supervisor_connection::connect, this));
 }
 
 supervisor_connection::~supervisor_connection()
@@ -56,7 +56,7 @@ void supervisor_connection::connect()
 
     _resolver.async_resolve(
         _supervisor_host, _supervisor_port,
-        boost::bind(&supervisor_connection::on_resolved, shared_from_this(),
+        boost::bind(&supervisor_connection::on_resolved, this,
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::iterator));
 }
@@ -75,7 +75,7 @@ void supervisor_connection::reschedule_retry_timer()
 {
     _timer.cancel();
     _timer.expires_from_now(boost::posix_time::seconds(_retry_interval_sec));
-    _timer.async_wait(boost::bind(&supervisor_connection::on_retry_timer_tick, shared_from_this(), boost::asio::placeholders::error));
+    _timer.async_wait(boost::bind(&supervisor_connection::on_retry_timer_tick, this, boost::asio::placeholders::error));
 }
 
 void supervisor_connection::on_retry_timer_tick(const boost::system::error_code& ec)
@@ -117,7 +117,7 @@ void supervisor_connection::on_resolved(const boost::system::error_code& ec,
     auto socket = std::make_shared<boost::asio::ip::tcp::socket>(_context);
     async_connect(
         *socket, endpoint_iterator,
-        boost::bind(&supervisor_connection::on_connected, shared_from_this(),
+        boost::bind(&supervisor_connection::on_connected, this,
                     boost::asio::placeholders::error,
                     socket));
 }

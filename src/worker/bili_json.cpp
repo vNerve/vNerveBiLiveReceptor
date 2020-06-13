@@ -41,8 +41,8 @@ public:
     borrowed_bilibili_message(RoomMessage* message)
         : _message(message) {}
     ~borrowed_bilibili_message() {}
-    size_t size() override { return _message->ByteSizeLong(); }
-    void write(void* data, int size) override { _message->SerializeToArray(data, size); }
+    size_t size() const override { return _message->ByteSizeLong(); }
+    void write(void* data, int size) const override { _message->SerializeToArray(data, size); }
 };
 
 const size_t JSON_BUFFER_SIZE = 128 * 1024;

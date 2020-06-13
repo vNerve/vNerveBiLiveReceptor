@@ -122,7 +122,7 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
     _connections.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(room_id),
-        std::forward_as_tuple(socket, shared_from_this(), room_id)); // Construct connection obj.
+        std::forward_as_tuple(socket, this, room_id)); // Construct connection obj.
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)

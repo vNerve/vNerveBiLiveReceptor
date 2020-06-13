@@ -26,6 +26,7 @@ set(WORKER_SOURCE_FILES
     "src/worker/supervisor_connection.cpp"
     "src/worker/supervisor_session.cpp"
     "src/worker/simple_worker_proto_generator.cpp"
+    "src/worker/global_context.cpp"
 
     "proto/cpp/vNerve/bilibili/live/room_message.pb.cc"
     "proto/cpp/vNerve/bilibili/live/user_message.pb.cc")
