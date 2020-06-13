@@ -338,7 +338,7 @@ void scheduler_session::handle_buffer(
     identifier_t identifier, unsigned char* payload_data,
     size_t payload_len)
 {
-    if (payload_len < 5)
+    if (payload_len < simple_message_header_length + 1)
         return; // Malformed
     auto op_code = payload_data[0]; // data[0]
     room_id_t room_id = boost::asio::detail::socket_ops::network_to_host_long(
@@ -382,7 +382,7 @@ void scheduler_session::handle_buffer(
     }
     else if (op_code == worker_data_code)
     {
-        if (payload_len < 33) // 1 + 4 + 4 + 24
+        if (payload_len < worker_data_payload_length)  // 1 + 4 + 4 + 24
         {
             SPDLOG_TRACE(LOG_PREFIX "Malformed data packet: wrong payload len {}!=33!", payload_len);
             return;
