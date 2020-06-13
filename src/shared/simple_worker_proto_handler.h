@@ -8,7 +8,7 @@ namespace vNerve::bilibili::worker_supervisor
 {
 using socket_close_handler = std::function<void()>;
 
-class simple_worker_proto_handler
+class simple_worker_proto_handler : public std::enable_shared_from_this<simple_worker_proto_handler>
 {
 private:
     std::string _log_prefix;
@@ -28,6 +28,8 @@ private:
 public:
     simple_worker_proto_handler(std::string log_prefix, std::shared_ptr<boost::asio::ip::tcp::socket> socket, size_t buffer_size, buffer_handler buffer_handler, socket_close_handler close_handler);
     ~simple_worker_proto_handler();
+
+    void start();
     void reset(std::shared_ptr<boost::asio::ip::tcp::socket> socket);
 
 

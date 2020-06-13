@@ -8,7 +8,7 @@ namespace vNerve::bilibili
 using supervisor_buffer_deleter = std::function<void(unsigned char*)>;
 using socket_close_handler = std::function<void()>;
 
-class asio_socket_write_helper
+class asio_socket_write_helper : public std::enable_shared_from_this<asio_socket_write_helper>
 {
 private:
     std::deque<std::tuple<unsigned char*, size_t, supervisor_buffer_deleter>> _write_queue;

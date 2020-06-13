@@ -10,8 +10,8 @@ supervisor_connection::supervisor_connection(const config::config_t config,
     : _config(config),
       _guard(_context.get_executor()),
       _resolver(_context),
-      _proto_handler("[sv_conn]", nullptr, ((*config)["read-buffer"].as<size_t>()), buffer_handler, boost::bind(&supervisor_connection::on_failed, this)),
-      _write_helper("[sv_conn]", nullptr, boost::bind(&supervisor_connection::on_failed, this)),
+      _proto_handler(std::make_shared<simple_worker_proto_handler>("[sv_conn]", nullptr, ((*config)["read-buffer"].as<size_t>()), buffer_handler, boost::bind(&supervisor_connection::on_failed, this))),
+      _write_helper(std::make_shared<asio_socket_write_helper>("[sv_conn]", nullptr, boost::bind(&supervisor_connection::on_failed, this))),
       _timer(_context),
       _retry_interval_sec((*config)["retry-interval-sec"].as<int>()),
       _supervisor_host((*config)["supervisor-host"].as<std::string>()),
@@ -46,7 +46,7 @@ void supervisor_connection::publish_msg(unsigned char* msg, size_t len,
         deleter(msg); // Dispose data.
         return;
     }
-    _write_helper.write(msg, len, deleter);
+    _write_helper->write(msg, len, deleter);
 }
 
 void supervisor_connection::join()
@@ -150,8 +150,8 @@ void supervisor_connection::on_connected(const boost::system::error_code& ec, st
     _socket = socket;
 
     spdlog::info("[sv_conn] Connecting to server.");
-    _proto_handler.reset(socket);
-    _write_helper.reset(socket);
+    _proto_handler->reset(socket);
+    _write_helper->reset(socket);
     _connected_handler();
 }
 

@@ -24,5 +24,7 @@ private:
 public:
     supervisor_global_context(config::config_t);
     ~supervisor_global_context();
+
+    void join();
 };
 }

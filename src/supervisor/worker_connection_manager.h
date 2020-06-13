@@ -27,8 +27,8 @@ class worker_session
 private:
     identifier_t _identifier;
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
-    asio_socket_write_helper _write_helper;
-    simple_worker_proto_handler _read_handler;
+    std::shared_ptr<asio_socket_write_helper> _write_helper;
+    std::shared_ptr<simple_worker_proto_handler> _read_handler;
     supervisor_worker_disconnect_handler _disconnect_handler;
     std::deque<std::tuple<unsigned char*, size_t, supervisor_buffer_deleter>> _write_queue;
 
@@ -122,5 +122,6 @@ public:
     void disconnect_worker(identifier_t identifier, bool callback = false);
 
     boost::asio::io_context& context() { return _context; }
+    void join();
 };
 }  // namespace vNerve::bilibili::worker_supervisor

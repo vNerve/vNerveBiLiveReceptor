@@ -20,6 +20,11 @@ supervisor_global_context::~supervisor_global_context()
 {
 }
 
+void supervisor_global_context::join()
+{
+    _scheduler->join();
+}
+
 void supervisor_global_context::on_vtuber_list_update(std::vector<int>& room_ids)
 {
     _scheduler->update_room_lists(room_ids);

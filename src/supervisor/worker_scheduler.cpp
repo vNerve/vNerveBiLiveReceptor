@@ -74,6 +74,11 @@ void scheduler_session::update_room_lists(std::vector<int>& rooms)
     });
 }
 
+void scheduler_session::join()
+{
+    _worker_session->join();
+}
+
 void scheduler_session::clear_worker_tasks(identifier_t identifier)
 {
     spdlog::debug(LOG_PREFIX "[{:016x}] Clearing tasks from worker", identifier);
@@ -192,8 +197,10 @@ void scheduler_session::check_worker_task_interval()
             ++it;
         else
         {
+            auto identifier = it->identifier;
+            auto room_id = it->room_id;
             it = delete_task<tasks_by_identifier_and_room_id>(it);
-            spdlog::warn(LOG_PREFIX "[<{0:016x},{1}>] Task exceeding max interval, unassigning!", it->identifier, it->room_id);
+            spdlog::warn(LOG_PREFIX "[<{0:016x},{1}>] Task exceeding max interval, unassigning!", identifier, room_id);
         }
 }
 
@@ -231,7 +238,7 @@ void scheduler_session::check_all_states()
     // tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>(); // unused
 
     // 先找出所有没有满掉的 worker
-    std::vector<worker_status*> workers_available(_workers.size());
+    std::vector<worker_status*> workers_available;
     for (auto& [_, worker] : _workers)
         if (worker.current_connections < worker.max_rooms
             && worker.allow_new_task_after < current_time)

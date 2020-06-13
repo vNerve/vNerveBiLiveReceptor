@@ -26,8 +26,8 @@ private:
     boost::asio::ip::tcp::resolver _resolver;
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
 
-    simple_worker_proto_handler _proto_handler;
-    asio_socket_write_helper _write_helper;
+    std::shared_ptr<simple_worker_proto_handler> _proto_handler;
+    std::shared_ptr<asio_socket_write_helper> _write_helper;
 
     boost::asio::deadline_timer _timer;
     int _retry_interval_sec;

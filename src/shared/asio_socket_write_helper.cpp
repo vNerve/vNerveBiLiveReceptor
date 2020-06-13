@@ -37,7 +37,7 @@ void asio_socket_write_helper::start_async_write()
         async_write(
             *socket,
             buffers,
-            boost::bind(&asio_socket_write_helper::on_written, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
+            boost::bind(&asio_socket_write_helper::on_written, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
                         count));
     }
     else
@@ -48,7 +48,7 @@ void asio_socket_write_helper::start_async_write()
         async_write(
             *socket,
             boost::asio::buffer(std::get<0>(buf_iter), std::get<1>(buf_iter)),
-            boost::bind(&asio_socket_write_helper::on_written, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
+            boost::bind(&asio_socket_write_helper::on_written, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
                         1));
     }
 }
@@ -111,7 +111,7 @@ void asio_socket_write_helper::write(unsigned char* buf, size_t len, const super
             deleter(buf);
             return;
         }
-        bool write_in_process = _write_queue.empty();
+        bool write_in_process = !_write_queue.empty();
         _write_queue.emplace_back(buf, len, deleter);
         if (!write_in_process)
             start_async_write();

@@ -83,6 +83,7 @@ public:
         _borrowed_bilibili_message._message->Clear();
         _borrowed_bilibili_message.crc32 = CRC::Calculate(buf, length, crc_lookup_table);  // 这个库又会做多少内存分配呢（已经不在乎了
         _document.ParseInsitu(buf);
+
         _borrowed_bilibili_message._message->set_room_id(room_id);
         if (!(_document.HasMember("cmd")
               && _document["cmd"].IsString()))

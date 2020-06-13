@@ -67,15 +67,19 @@ worker_session::worker_session(
     size_t read_buffer_size,
     supervisor_buffer_handler buffer_handler,
     supervisor_worker_disconnect_handler disconnect_handler)
-    : _identifier(identifier), _socket(socket),
-      _write_helper(fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
-          socket, std::bind(&worker_session::disconnect, this, true)),
-      _read_handler(fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
+    : _identifier(identifier),
+      _socket(socket),
+      _write_helper(std::make_shared<asio_socket_write_helper>(
+          fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
+          socket, std::bind(&worker_session::disconnect, this, true))),
+      _read_handler(std::make_shared<simple_worker_proto_handler>(
+          fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
           socket, read_buffer_size,
           std::bind(buffer_handler, identifier, std::placeholders::_1, std::placeholders::_2),
-          std::bind(&worker_session::disconnect, this, true)),
+          std::bind(&worker_session::disconnect, this, true))),
       _disconnect_handler(std::move(disconnect_handler))
 {
+    _read_handler->start();
 }
 
 worker_session::~worker_session()
@@ -86,7 +90,7 @@ worker_session::~worker_session()
 
 void worker_session::send(unsigned char* buf, size_t len, supervisor_buffer_deleter deleter)
 {
-    _write_helper.write(buf, len, deleter);
+    _write_helper->write(buf, len, deleter);
 }
 
 void worker_session::disconnect(bool callback)
@@ -158,6 +162,11 @@ start_accept()
         *socket,
         boost::bind(&worker_connection_manager::on_accept, this,
                     boost::asio::placeholders::error, socket));
+}
+
+void worker_connection_manager::join()
+{
+    _thread.join();
 }
 
 void worker_connection_manager::on_accept(

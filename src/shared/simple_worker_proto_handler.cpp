@@ -14,15 +14,20 @@ simple_worker_proto_handler::simple_worker_proto_handler(std::string log_prefix,
       _read_buffer_ptr(new unsigned char[buffer_size]),
       _read_buffer_size(buffer_size),
       _socket(socket),
-      _close_handler(close_handler),
-      _buffer_handler(buffer_handler)
+      _close_handler(std::move(close_handler)),
+      _buffer_handler(std::move(buffer_handler))
 
 {
-    start_async_read();
+
 }
 
 simple_worker_proto_handler::~simple_worker_proto_handler()
 {
+}
+
+void simple_worker_proto_handler::start()
+{
+    start_async_read();
 }
 
 void simple_worker_proto_handler::reset(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
@@ -48,7 +53,7 @@ void simple_worker_proto_handler::start_async_read()
     socket->async_receive(
         boost::asio::buffer(_read_buffer_ptr.get() + _read_buffer_offset,
                             _read_buffer_size - _read_buffer_offset),
-        boost::bind(&simple_worker_proto_handler::on_receive, this,
+        boost::bind(&simple_worker_proto_handler::on_receive, shared_from_this(),
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::bytes_transferred));
 }

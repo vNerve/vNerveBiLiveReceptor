@@ -14,7 +14,7 @@ const std::string DEFAULT_VNERVE_SERVER = "http://localhost:6161/";
 const int DEFAULT_VNERVE_UPDATE_INTERVAL_MINUTES = 30;
 const int DEFAULT_VNERVE_UPDATE_TIMEOUT_SEC = 10;
 
-const int DEFAULT_WORKER_PORT = 2434;
+const int DEFAULT_WORKER_PORT = 2434; // see also worker/config.cpp
 const int DEFAULT_WORKER_MQ_THREADS = 1;
 const int DEFAULT_WORKER_RECV_TIMEOUT_SEC = 30;
 const int DEFAULT_WORKER_CHECK_INTERVAL_MS = 5000;

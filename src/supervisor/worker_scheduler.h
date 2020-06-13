@@ -189,6 +189,7 @@ public:
     ~scheduler_session();
 
     void update_room_lists(std::vector<int>&);
+    void join();
 };
 }  // namespace worker_supervisor
 }
