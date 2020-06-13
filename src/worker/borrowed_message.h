@@ -1,6 +1,6 @@
 #pragma once
 
-namespace vNerve
+namespace vNerve::bilibili
 {
 class borrowed_message
 {
