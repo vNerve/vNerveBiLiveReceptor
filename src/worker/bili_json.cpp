@@ -58,20 +58,14 @@ class parse_context
 private:
     unsigned char _json_buffer[JSON_BUFFER_SIZE];
     unsigned char _parse_buffer[PARSE_BUFFER_SIZE];
-    MemoryPoolAllocator _value_allocator;
-    MemoryPoolAllocator _stack_allocator;
-    Document _document;
+    // We should create rapidjson::Document every parse
+
     Arena _arena;
     borrowed_bilibili_message _borrowed_bilibili_message;
 
 public:
     parse_context()
-        : _value_allocator(&_json_buffer, JSON_BUFFER_SIZE),
-          _stack_allocator(&_parse_buffer, PARSE_BUFFER_SIZE),
-          _document(&_value_allocator, PARSE_BUFFER_SIZE, &_stack_allocator),
-          // 类成员按声明顺序初始化
-          // _arena({256, 8192}),
-          _borrowed_bilibili_message(Arena::CreateMessage<RoomMessage>(&_arena))
+        : _borrowed_bilibili_message(Arena::CreateMessage<RoomMessage>(&_arena))
     {
     }
     ///
@@ -83,22 +77,26 @@ public:
     const borrowed_bilibili_message* serialize(char* buf, const size_t& length, const unsigned int& room_id)
     {
         _borrowed_bilibili_message._message->Clear();
-        _borrowed_bilibili_message.crc32 = CRC::Calculate(buf, length, crc_lookup_table);  // 这个库又会做多少内存分配呢（已经不在乎了
-        rapidjson::ParseResult result = _document.ParseInsitu(buf);
+        _borrowed_bilibili_message.crc32 = CRC::Calculate(buf, length, crc_lookup_table);  // 这个库又会做多少内存分配呢（已经不在乎了.
+
+        MemoryPoolAllocator value_allocator(_json_buffer, JSON_BUFFER_SIZE);
+        MemoryPoolAllocator stack_allocator(_parse_buffer, PARSE_BUFFER_SIZE);
+        Document document(&value_allocator, PARSE_BUFFER_SIZE, &stack_allocator);
+        rapidjson::ParseResult result = document.ParseInsitu(buf);
         if (result.IsError())
         {
             spdlog::warn("[bili_json] Bilibili JSON: Failed to parse JSON:{} ({})", rapidjson::GetParseError_En(result.Code()), result.Offset());
             return nullptr;
         }
-        if (!_document.IsObject())
+        if (!document.IsObject())
         {
             spdlog::warn("[bili_json] Bilibili JSON: Root element is not JSON object.");
             return nullptr;
         }
 
         _borrowed_bilibili_message._message->set_room_id(room_id);
-        auto cmd_iter = _document.FindMember("cmd");
-        if (cmd_iter == _document.MemberEnd() || !cmd_iter->value.IsString())
+        auto cmd_iter = document.FindMember("cmd");
+        if (cmd_iter == document.MemberEnd() || !cmd_iter->value.IsString())
         {
             SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed");
             return nullptr;
@@ -106,7 +104,7 @@ public:
         // TODO: 使用boost::multiindex配合robin_hood::hash魔改robin_hood::unordered_map来避免无意义的内存分配
         string cmd(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength());
         if ((command.find(cmd) != command.end())
-            && command[cmd](room_id, _document, _borrowed_bilibili_message, &_arena))
+            && command[cmd](room_id, document, _borrowed_bilibili_message, &_arena))
             return &_borrowed_bilibili_message;
         // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
         SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: {}", cmd);
