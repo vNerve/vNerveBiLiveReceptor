@@ -166,6 +166,8 @@ void scheduler_session::assign_task(worker_status* worker, room_status* room, st
 
 int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count)
 {
+    if (room_count == 0)
+        return 0;
     long long sum = 0;
     for (worker_status* worker : workers_available)
         sum += worker->max_rooms;
@@ -240,23 +242,6 @@ void scheduler_session::check_all_states()
     tasks_by_room_id_t& tasks_by_rid = _tasks.get<tasks_by_room_id>();
     // tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>(); // unused
 
-    // 先找出所有没有满掉的 worker
-    std::vector<worker_status*> workers_available;
-    for (auto& [_, worker] : _workers)
-        if (worker.current_connections < worker.max_rooms
-            && worker.allow_new_task_after < current_time)
-        {
-            workers_available.push_back(&worker);
-            worker.punished = false;
-        }
-    if (workers_available.empty())
-    {
-        spdlog::error(LOG_PREFIX "No available worker!");
-        return;
-    }
-    // 按照权值算法排序 worker
-    std::sort(workers_available.begin(), workers_available.end(), compare_worker);
-
     // Delete all inactive rooms
     for (auto it = _rooms.begin(); it != _rooms.end();)
     {
@@ -274,6 +259,23 @@ void scheduler_session::check_all_states()
             send_unassign(task_iter->identifier, task_iter->room_id);
         it = _rooms.erase(it);
     }
+
+    // 先找出所有没有满掉的 worker
+    std::vector<worker_status*> workers_available;
+    for (auto& [_, worker] : _workers)
+        if (worker.current_connections < worker.max_rooms
+            && worker.allow_new_task_after < current_time)
+        {
+            workers_available.push_back(&worker);
+            worker.punished = false;
+        }
+    if (workers_available.empty())
+    {
+        spdlog::error(LOG_PREFIX "No available worker!");
+        return;
+    }
+    // 按照权值算法排序 worker
+    std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
     int max_tasks_per_room = calculate_max_workers_per_room(workers_available, _rooms.size());
     max_tasks_per_room = std::min(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了

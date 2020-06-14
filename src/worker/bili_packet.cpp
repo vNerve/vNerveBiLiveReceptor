@@ -170,8 +170,11 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
             spdlog::trace("[packet] [{:p}] Received JSON data. len=",
                           buf, payload_size);
 
-            *reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header) + payload_size) = '\0';
+            auto last_char_iter = reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header) + payload_size);
+            auto last_char = *last_char_iter;
+            *last_char_iter = '\0';
             const borrowed_message* msg = serialize_buffer(reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header)), payload_size, room_id);
+            *last_char_iter = last_char;
             if (msg)
                 handler(msg);
         }
