@@ -8,6 +8,8 @@
 #include <CRC.h>
 #include <robin_hood.h>
 #include <boost/thread/tss.hpp>
+#include <boost/multi_index_container.hpp>
+#include <boost/multi_index/hashed_index.hpp>
 #include <rapidjson/allocators.h>
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
@@ -51,7 +53,7 @@ const size_t JSON_BUFFER_SIZE = 128 * 1024;
 const size_t PARSE_BUFFER_SIZE = 32 * 1024;
 const CRC::Table<uint32_t, 32> crc_lookup_table(CRC::CRC_32());
 
-robin_hood::unordered_map<string, function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>> command;
+robin_hood::unordered_map<decltype(robin_hood::hash_bytes("", 0)), function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>> command;
 
 class parse_context
 {
@@ -98,16 +100,21 @@ public:
         auto cmd_iter = document.FindMember("cmd");
         if (cmd_iter == document.MemberEnd() || !cmd_iter->value.IsString())
         {
-            SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed");
+            SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed: No cmd provided");
             return nullptr;
         }
-        // TODO: 使用boost::multiindex配合robin_hood::hash魔改robin_hood::unordered_map来避免无意义的内存分配
-        string cmd(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength());
-        if ((command.find(cmd) != command.end())
-            && command[cmd](room_id, document, _borrowed_bilibili_message, &_arena))
+        auto cmd_hash = robin_hood::hash_bytes(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength());
+        auto cmd_func_iter = command.find(cmd_hash);
+        if (cmd_func_iter == command.end())
+        {
+            // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
+            SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: {}", cmd_iter->value.GetString());
+            return nullptr;
+        }
+        if (cmd_func_iter->second(room_id, document, _borrowed_bilibili_message, &_arena))
             return &_borrowed_bilibili_message;
-        // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
-        SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: {}", cmd);
+
+        SPDLOG_TRACE("[bili_json] Failed serializing message.");
         return nullptr;
     }
     ~parse_context() {}
@@ -129,7 +136,7 @@ const borrowed_message* serialize_buffer(char* buf, const size_t& length, const 
 
 #define CMD(name)                                                                                    \
     bool cmd_##name(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*); \
-    bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second;                            \
+    bool cmd_##name##_inited = command.emplace(robin_hood::hash_bytes(#name, sizeof(#name)-1), cmd_##name).second;                            \
     bool cmd_##name(const unsigned int& room_id, const Document& document, const borrowed_bilibili_message& message, Arena* arena)
 
 #define ASSERT_TRACE(expr)                                                   \
