@@ -189,24 +189,24 @@ CMD(DANMU_MSG)
     ASSERT_TRACE(user_info[1].IsString())
     embedded_user_info->set_name(user_info[1].GetString(), user_info[1].GetStringLength());
     // admin
-    ASSERT_TRACE(user_info[2].IsBool())
-    embedded_user_info->set_admin(user_info[2].GetBool());
+    ASSERT_TRACE(user_info[2].IsInt())
+    embedded_user_info->set_admin(user_info[2].GetInt() == 1);
     // vip&svip->livevip
-    ASSERT_TRACE(user_info[3].IsBool() && user_info[4].IsBool())
+    ASSERT_TRACE(user_info[3].IsInt() && user_info[4].IsInt())
     // 这两个字段分别是月费/年费会员
     // 都为假时无会员 都为真时报错
-    if (user_info[3].GetBool() == user_info[4].GetBool())
+    if (user_info[3].IsInt() == user_info[4].IsInt())
     {
-        if (user_info[3].GetBool())
+        if (user_info[3].IsInt() == 1)
             // 均为真 报错
-            // 未设置的protobuf字段会被置为默认值
+            // 未设置的 protobuf 字段会被置为默认值
             SPDLOG_TRACE("[bili_json] both vip and svip are true");
         else  // 均为假 无直播会员
             embedded_user_info->set_live_vip_level(live::LiveVipLevel::NO_VIP);
     }
     else
     {
-        if (user_info[3].GetBool())
+        if (user_info[3].GetInt() == 1)
             // 月费会员为真 年费会员为假 月费
             embedded_user_info->set_live_vip_level(live::LiveVipLevel::MONTHLY);
         else  // 月费会员为假 年费会员为真 年费
@@ -221,8 +221,8 @@ CMD(DANMU_MSG)
     else
         SPDLOG_TRACE("[bili_json] unknown user rank");
     // phone_verified
-    ASSERT_TRACE(user_info[6].IsBool())
-    embedded_user_info->set_phone_verified(user_info[6].GetBool());
+    ASSERT_TRACE(user_info[6].IsInt())
+    embedded_user_info->set_phone_verified(user_info[6].GetInt() == 1);
     // user_level
     ASSERT_TRACE(user_level[0].IsUint())
     embedded_user_info->set_user_level(user_level[0].GetUint());
