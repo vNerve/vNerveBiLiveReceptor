@@ -197,7 +197,7 @@ CMD(DANMU_MSG)
     // 都为假时无会员 都为真时报错
     if (user_info[3].IsInt() == user_info[4].IsInt())
     {
-        if (user_info[3].IsInt() == 1)
+        if (user_info[3].GetInt() == 1)
             // 均为真 报错
             // 未设置的 protobuf 字段会被置为默认值
             SPDLOG_TRACE("[bili_json] both vip and svip are true");
@@ -247,8 +247,8 @@ CMD(DANMU_MSG)
     ASSERT_TRACE(medal_info[0].IsUint())
     embedded_medal_info->set_medal_level(medal_info[0].GetUint());
     // medal_color
-    ASSERT_TRACE(medal_info[5].IsUint())
-    embedded_medal_info->set_medal_color(medal_info[5].GetUint());
+    ASSERT_TRACE(medal_info[4].IsUint())
+    embedded_medal_info->set_medal_color(medal_info[4].GetUint());
     // liver user name
     ASSERT_TRACE(medal_info[2].IsString())
     embedded_medal_info->set_streamer_name(medal_info[2].GetString(), medal_info[2].GetStringLength());
