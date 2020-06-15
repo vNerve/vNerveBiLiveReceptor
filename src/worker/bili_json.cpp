@@ -183,10 +183,10 @@ CMD(DANMU_MSG)
     auto title_info_present = title_info.IsArray() && title_info.Size() >= 2;
 
     // 以下变量类型均为 T*
-    auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
-    auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
-    auto embedded_danmaku = Arena::CreateMessage<live::DanmakuMessage>(arena);
-    auto embedded_medal_info = Arena::CreateMessage<live::MedalInfo>(arena);
+    auto embedded_user_message = message._message->mutable_user_message();
+    auto embedded_user_info = embedded_user_message->mutable_user();
+    auto embedded_danmaku = embedded_user_message->mutable_danmaku();
+    auto embedded_medal_info = embedded_user_info->mutable_medal();
 
     // user_info
     // uid
@@ -322,10 +322,10 @@ CMD(DANMU_MSG)
     }
 
     if (medal_info_present)
-        embedded_user_info->set_allocated_medal(embedded_medal_info);
-    embedded_user_message->set_allocated_user(embedded_user_info);
-    embedded_user_message->set_allocated_danmaku(embedded_danmaku);
-    message._message->set_allocated_user_message(embedded_user_message);
+        embedded_user_info->clear_medal();
+    //embedded_user_message->set_allocated_user(embedded_user_info);
+    //embedded_user_message->set_allocated_danmaku(embedded_danmaku);
+    //message._message->set_allocated_user_message(embedded_user_message);
     return true;
 }
 
