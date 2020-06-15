@@ -45,7 +45,7 @@ std::pair<unsigned char*, size_t> generate_worker_data_packet(room_id_t room_id,
     ptr++;
     *reinterpret_cast<int*>(ptr) = boost::asio::detail::socket_ops::host_to_network_long(room_id);                      // ROOM
     ptr += room_id_length;
-    *reinterpret_cast<int*>(ptr) = boost::asio::detail::socket_ops::host_to_network_long(room_id);                       // CHECKSUM
+    *reinterpret_cast<int*>(ptr) = boost::asio::detail::socket_ops::host_to_network_long(msg->crc32);                       // CHECKSUM
     ptr += crc_32_length;
     std::memcpy(ptr, msg->routing_key, routing_key_max_size);
     ptr += routing_key_max_size;
