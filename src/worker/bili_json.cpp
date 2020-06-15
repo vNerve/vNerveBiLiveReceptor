@@ -5,6 +5,7 @@
 #include "vNerve/bilibili/live/user_message.pb.h"
 
 #define CRCPP_USE_CPP11
+#define CRCPP_BRANCHLESS
 #include <CRC.h>
 #include <robin_hood.h>
 #include <boost/thread/tss.hpp>
@@ -157,24 +158,30 @@ CMD(DANMU_MSG)
     // TODO: 设置routing_key
 
     // 以下变量均为 rapidjson::GenericArray ?
-    ASSERT_TRACE(document.HasMember("info"))
-    ASSERT_TRACE(document["info"].IsArray())
+    auto info_iter = document.FindMember("info");
+    ASSERT_TRACE(info_iter != document.MemberEnd() && info_iter->value.IsArray());
+
     // 数组数量不对是结构性错误
     // 但b站很有可能在不改变先前字段的情况下添加字段
     ASSERT_TRACE(document["info"].Size() >= 15);
-    auto const& info = document["info"];  // 或 document["info"].GetArray() ?
-    ASSERT_TRACE(info[0].IsArray())
-    ASSERT_TRACE(info[0].Size() >= 11)
+    auto const& info = info_iter->value;
+    ASSERT_TRACE(info.Size() >= 15);
+
     auto const& basic_info = info[0];
-    ASSERT_TRACE(info[2].IsArray())
-    ASSERT_TRACE(info[2].Size() >= 8)
+    ASSERT_TRACE(basic_info.IsArray() && basic_info.Size() >= 11 /* basic_info = info[0] */)
+
     auto const& user_info = info[2];
-    ASSERT_TRACE(info[3].IsArray())
-    ASSERT_TRACE(info[3].Size() >= 6)
+    ASSERT_TRACE(user_info.IsArray() && user_info.Size() >= 8 /* user_info = info[2] */)
+
     auto const& medal_info = info[3];
-    ASSERT_TRACE(info[4].IsArray())
-    ASSERT_TRACE(info[4].Size() >= 4)
-    auto const& user_level = info[4];
+    auto medal_info_present = medal_info.IsArray() && medal_info.Size() >= 6;
+
+    auto const& user_level_info = info[4];
+    ASSERT_TRACE(user_level_info.IsArray() && user_level_info.Size() >= 4 /* user_level_info = info[4] */);
+
+    auto const& title_info = info[5];
+    auto title_info_present = title_info.IsArray() && title_info.Size() >= 2;
+
     // 以下变量类型均为 T*
     auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
     auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
@@ -224,15 +231,19 @@ CMD(DANMU_MSG)
     ASSERT_TRACE(user_info[6].IsInt())
     embedded_user_info->set_phone_verified(user_info[6].GetInt() == 1);
     // user_level
-    ASSERT_TRACE(user_level[0].IsUint())
-    embedded_user_info->set_user_level(user_level[0].GetUint());
+    ASSERT_TRACE(user_level_info[0].IsUint())
+    embedded_user_info->set_user_level(user_level_info[0].GetUint());
     // user_level_border_color
-    ASSERT_TRACE(user_level[2].IsUint())
-    embedded_user_info->set_user_level(user_level[2].GetUint());
+    ASSERT_TRACE(user_level_info[2].IsUint())
+    embedded_user_info->set_user_level(user_level_info[2].GetUint());
     // title
-    ASSERT_TRACE(info[5].IsArray())
-    ASSERT_TRACE(info[5][1].IsString())
-    embedded_user_info->set_title(info[5][1].GetString(), info[5][1].GetStringLength());
+    if (title_info_present)
+    {
+        auto const& title = title_info[1];
+        if (title.IsString())
+            embedded_user_info->set_title(title.GetString(), title.GetStringLength());
+    }
+
     // avatar_url
     // 弹幕没有头像字段 默认置空
     // main_vip
@@ -240,36 +251,42 @@ CMD(DANMU_MSG)
     // user_level[1] unknown
 
     // medal
-    // medal_name
-    ASSERT_TRACE(medal_info[1].IsString())
-    embedded_medal_info->set_medal_name(medal_info[1].GetString(), medal_info[1].GetStringLength());
-    // medal_level
-    ASSERT_TRACE(medal_info[0].IsUint())
-    embedded_medal_info->set_medal_level(medal_info[0].GetUint());
-    // medal_color
-    ASSERT_TRACE(medal_info[4].IsUint())
-    embedded_medal_info->set_medal_color(medal_info[4].GetUint());
-    // liver user name
-    ASSERT_TRACE(medal_info[2].IsString())
-    embedded_medal_info->set_streamer_name(medal_info[2].GetString(), medal_info[2].GetStringLength());
-    // liver room id
-    ASSERT_TRACE(medal_info[3].IsUint())
-    embedded_medal_info->set_streamer_roomid(medal_info[3].GetUint());
-    // liver user id
-    // 弹幕没有牌子属于的用户的uid的字段
-    // special_medal
-    // medal_info[6] unknown
-    // medal_info[7] unknown
+    if (medal_info_present)
+    {
+        // medal_name
+        ASSERT_TRACE(medal_info[1].IsString())
+        embedded_medal_info->set_medal_name(medal_info[1].GetString(), medal_info[1].GetStringLength());
+        // medal_level
+        ASSERT_TRACE(medal_info[0].IsUint())
+        embedded_medal_info->set_medal_level(medal_info[0].GetUint());
+        // medal_color
+        ASSERT_TRACE(medal_info[4].IsUint())
+        embedded_medal_info->set_medal_color(medal_info[4].GetUint());
+        // liver user name
+        ASSERT_TRACE(medal_info[2].IsString())
+        embedded_medal_info->set_streamer_name(medal_info[2].GetString(), medal_info[2].GetStringLength());
+        // liver room id
+        ASSERT_TRACE(medal_info[3].IsUint())
+        embedded_medal_info->set_streamer_roomid(medal_info[3].GetUint());
+        // liver user id
+        // 弹幕没有牌子属于的主播的uid的字段
+        // special_medal
+        // medal_info[6] unknown
+        // medal_info[7] unknown
+    }
 
     // danmaku
     // message
     // 设置字符串的函数会分配额外的string 并且不通过arena分配内存
     // 需要考虑tcmalloc等
-    ASSERT_TRACE(info[1].IsString())
-    embedded_danmaku->set_message(info[1].GetString(), info[1].GetStringLength());
+    auto const& message_content = info[1];
+    ASSERT_TRACE(message_content.IsString() /* message = info[1] */)
+    embedded_danmaku->set_message(message_content.GetString(), message_content.GetStringLength());
+
     // danmaku type
-    ASSERT_TRACE(basic_info[9].IsUint())
-    switch (basic_info[9].GetUint())
+    auto const& danmaku_type = basic_info[9];
+    ASSERT_TRACE(danmaku_type.IsUint() /* danmaku_type = basic_info[9] */)
+    switch (danmaku_type.GetUint())
     {
     case 0:  // 普通弹幕
         embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::NO_LOTTERY);
@@ -283,9 +300,11 @@ CMD(DANMU_MSG)
     default:
         SPDLOG_TRACE("[bili_json] unknown danmaku lottery type");
     }
+
     // guard level
-    ASSERT_TRACE(info[7].IsUint())
-    switch (info[7].GetUint())
+    auto const& guard_level = info[7];
+    ASSERT_TRACE(guard_level.IsUint())
+    switch (guard_level.GetUint())
     {
     case 0:  // 无舰队
         embedded_danmaku->set_guard_level(live::GuardLevel::NO_GUARD);
@@ -302,7 +321,8 @@ CMD(DANMU_MSG)
         SPDLOG_TRACE("[bili_json] unknown guard level");
     }
 
-    embedded_user_info->set_allocated_medal(embedded_medal_info);
+    if (medal_info_present)
+        embedded_user_info->set_allocated_medal(embedded_medal_info);
     embedded_user_message->set_allocated_user(embedded_user_info);
     embedded_user_message->set_allocated_danmaku(embedded_danmaku);
     message._message->set_allocated_user_message(embedded_user_message);
@@ -314,6 +334,11 @@ CMD(SUPER_CHAT_MESSAGE)
     // TODO: 设置routing_key
 
     // TODO: 补充SC中的字段
+    // TODO: 所有查找字段建议改成用迭代器形式，考虑写一个宏
+    // 也就是说 auto user_info_data = data.FindMember("user_info");
+    // ASSERT_TRACE(user_info_data != data.MemberEnd())
+    // auto user_info = user_info->value;
+    // ASSERT_TRACE(...........)
 
     // 以下变量均为 rapidjson::GenericArray ?
     ASSERT_TRACE(document.HasMember("data"))
