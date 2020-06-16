@@ -269,11 +269,11 @@ void scheduler_session::check_all_states()
             workers_available.push_back(&worker);
             worker.punished = false;
         }
-    if (workers_available.empty())
-    {
-        spdlog::error(LOG_PREFIX "No available worker!");
-        return;
-    }
+    //if (workers_available.empty())
+    //{
+        //spdlog::error(LOG_PREFIX "No available worker!");
+        //return;
+    //}
     // 按照权值算法排序 worker
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
@@ -314,8 +314,8 @@ void scheduler_session::check_all_states()
             }
         }
 
-        if (room.current_connections < 1)
-            spdlog::warn(LOG_PREFIX "Room {0} can't get any worker!", room_id);
+        //if (room.current_connections < 1)
+            //spdlog::warn(LOG_PREFIX "Room {0} can't get any worker!", room_id);
     }
 }
 
