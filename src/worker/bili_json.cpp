@@ -147,6 +147,13 @@ const borrowed_message* serialize_buffer(char* buf, const size_t& length, const 
         return false;                                                        \
     }
 
+
+#define GetMemberCheck(src, name, expr)                                  \
+    auto name##_iter = (src).FindMember((src));                          \
+    ASSERT_TRACE(name##_iter != (src).MemberEnd() /* name = src[name] */)\
+    auto const& name = name##_iter->value;                                      \
+    ASSERT_TRACE(expr)
+
 CMD(DANMU_MSG)
 {
     // TODO: 需要测试message使用完毕清空时embedded message是否会清空
@@ -157,15 +164,10 @@ CMD(DANMU_MSG)
 
     // TODO: 设置routing_key
 
-    // 以下变量均为 rapidjson::GenericArray ?
-    auto info_iter = document.FindMember("info");
-    ASSERT_TRACE(info_iter != document.MemberEnd() && info_iter->value.IsArray());
-
     // 数组数量不对是结构性错误
     // 但b站很有可能在不改变先前字段的情况下添加字段
-    ASSERT_TRACE(document["info"].Size() >= 15);
-    auto const& info = info_iter->value;
-    ASSERT_TRACE(info.Size() >= 15);
+
+    GetMemberCheck(document, info, info.IsArray() && info.Size() >= 15)
 
     auto const& basic_info = info[0];
     ASSERT_TRACE(basic_info.IsArray() && basic_info.Size() >= 11 /* basic_info = info[0] */)
@@ -186,7 +188,6 @@ CMD(DANMU_MSG)
     auto embedded_user_message = message._message->mutable_user_message();
     auto embedded_user_info = embedded_user_message->mutable_user();
     auto embedded_danmaku = embedded_user_message->mutable_danmaku();
-    auto embedded_medal_info = embedded_user_info->mutable_medal();
 
     // user_info
     // uid
@@ -253,6 +254,7 @@ CMD(DANMU_MSG)
     // medal
     if (medal_info_present)
     {
+        auto embedded_medal_info = embedded_user_info->mutable_medal();
         // medal_name
         ASSERT_TRACE(medal_info[1].IsString())
         embedded_medal_info->set_medal_name(medal_info[1].GetString(), medal_info[1].GetStringLength());
@@ -321,8 +323,8 @@ CMD(DANMU_MSG)
         SPDLOG_TRACE("[bili_json] unknown guard level");
     }
 
-    if (medal_info_present)
-        embedded_user_info->clear_medal();
+    //if (medal_info_present)
+        //embedded_user_info->clear_medal();
     //embedded_user_message->set_allocated_user(embedded_user_info);
     //embedded_user_message->set_allocated_danmaku(embedded_danmaku);
     //message._message->set_allocated_user_message(embedded_user_message);
@@ -334,13 +336,10 @@ CMD(SUPER_CHAT_MESSAGE)
     // TODO: 设置routing_key
 
     // TODO: 补充SC中的字段
-    // TODO: 所有查找字段建议改成用迭代器形式，考虑写一个宏
-    // 也就是说 auto user_info_data = data.FindMember("user_info");
-    // ASSERT_TRACE(user_info_data != data.MemberEnd())
-    // auto user_info = user_info->value;
-    // ASSERT_TRACE(...........)
 
     // 以下变量均为 rapidjson::GenericArray ?
+    // TODO: 全部改成上面写的 GetMemberCheck
+    // TODO: 检查如果没有带牌子，medal_info状态
     ASSERT_TRACE(document.HasMember("data"))
     ASSERT_TRACE(document["data"].IsObject())
     auto const& data = document["data"];
@@ -351,9 +350,9 @@ CMD(SUPER_CHAT_MESSAGE)
     ASSERT_TRACE(data["medal_info"].IsObject())
     auto const& medal_info = data["medal_info"];
     // 以下变量类型均为 T*
-    auto embedded_user_message = Arena::CreateMessage<live::UserMessage>(arena);
-    auto embedded_user_info = Arena::CreateMessage<live::UserInfo>(arena);
-    auto embedded_medal_info = Arena::CreateMessage<live::MedalInfo>(arena);
+    auto embedded_user_message = message._message->mutable_user_message();
+    auto embedded_user_info = embedded_user_message->mutable_user();
+    auto embedded_medal_info = embedded_user_info->mutable_medal();
     auto embedded_superchat = Arena::CreateMessage<live::SuperChatMessage>(arena);
 
     // user_info
