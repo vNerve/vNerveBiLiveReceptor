@@ -22,13 +22,13 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
                                         worker_supervisor::room_id_t room_id,
                                         message_handler data_handler)
 {
-    spdlog::trace(
+    SPDLOG_TRACE(
         "[bili_buffer] [{:p}] Handling buffer: transferred={}, buffer_size={}, skipping_size={}.",
         buf, transferred, buffer_size, skipping_size);
     if (skipping_size > transferred)
     {
         auto next_skipping_size = skipping_size - transferred;
-        spdlog::trace(
+        SPDLOG_TRACE(
             "[bili_buffer] [{:p}] Continue skipping message... Next skipping size=",
             buf, next_skipping_size);
         return std::pair<size_t, size_t>(
@@ -39,13 +39,13 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
 
     while (remaining > 0)
     {
-        spdlog::trace("[bili_buffer] [{:p}] Decoding message, remaining={}",
+        SPDLOG_TRACE("[bili_buffer] [{:p}] Decoding message, remaining={}",
                       buf, remaining);
         assert(remaining <= buffer_size && remaining <= transferred);
         if (remaining < sizeof(bilibili_packet_header))
         {
             // the remaining bytes can't even form a header, so move it to the head and wait for more data.
-            spdlog::trace(
+            SPDLOG_TRACE(
                 "[bili_buffer] [{:p}] Remaining bytes can't form a header. Request for more data be written to buf+{}.",
                 buf, remaining);
             std::memmove(buf, begin, remaining);
@@ -75,7 +75,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
         {
             // need more data.
             std::memmove(buf, begin, remaining);
-            spdlog::trace(
+            SPDLOG_TRACE(
                 "[bili_buffer] [{:p}] Packet not complete. Request for more data be written to buf+{}.",
                 buf, remaining);
             return std::pair<size_t, size_t>(remaining, 0);
@@ -108,7 +108,7 @@ std::tuple<unsigned char*, int, unsigned long> decompress_buffer(
     auto zlib_buf = get_zlib_buffer();
     unsigned long out_size = zlib_buffer_size;
     auto result = uncompress(zlib_buf, &out_size, buf, size);
-    spdlog::trace("[zlib] [{:p}] Packet decompressed to {:p}. code={}, size={}",
+    SPDLOG_TRACE("[zlib] [{:p}] Packet decompressed to {:p}. code={}, size={}",
                   buf, zlib_buf, result, out_size);
     return {result == Z_OK ? zlib_buf : nullptr, result, out_size};
 }
@@ -125,7 +125,7 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
     }
 
     auto payload_size = header->length() - sizeof(bilibili_packet_header);
-    //spdlog::trace(
+    //SPDLOG_TRACE(
     //    "[packet] [{:p}] Packet header: len={}, proto_ver={}, op_code={}, seq_id={}",
     //    buf, header->length(), header->protocol_version(),
     //    header->op_code(), header->sequence_id());
@@ -134,7 +134,7 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
     {
     case zlib_compressed:
     {
-        spdlog::trace("[packet] [{:p}] Decompressing zlib-zipped packet.", buf);
+        SPDLOG_TRACE("[packet] [{:p}] Decompressing zlib-zipped packet.", buf);
         auto [decompressed, err_code, out_size] = decompress_buffer(
             buf + sizeof(bilibili_packet_header), payload_size);
         if (!decompressed)
@@ -167,7 +167,7 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
         {
         case json_message:
         {
-            spdlog::trace("[packet] [{:p}] Received JSON data. len=",
+            SPDLOG_TRACE("[packet] [{:p}] Received JSON data. len={}",
                           buf, payload_size);
 
             auto last_char_iter = reinterpret_cast<char*>(buf + sizeof(bilibili_packet_header) + payload_size);
@@ -192,13 +192,13 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
                 boost::asio::detail::socket_ops::network_to_host_long(
                     *reinterpret_cast<uint32_t*>(
                         buf + sizeof(bilibili_packet_header)));
-            spdlog::trace("[packet] [{:p}] Heartbeat response: Popularity={}",
+            SPDLOG_TRACE("[packet] [{:p}] Heartbeat response: Popularity={}",
                           buf, popularity);
             break;
             // TODO send
         }
         case join_room_resp:
-            spdlog::trace("[packet] [{:p}] Successfully joined room.", buf);
+            SPDLOG_TRACE("[packet] [{:p}] Successfully joined room.", buf);
             break;
         default:
             spdlog::warn("[packet] [{:p}] Unknown packet type! op_code={}",
