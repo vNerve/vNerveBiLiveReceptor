@@ -142,10 +142,10 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_tick(
         {
             spdlog::debug("[conn] [room={}] Cancelling heartbeat timer.",
                           _room_id);
-            return;  // closing socket.
         }
         spdlog::warn("[conn] [room={}] Error in heartbeat tick! err:{}: {}",
                      _room_id, err.value(), err.message());
+        return;  // closing socket.
     }
 
     auto& buf = _session->get_heartbeat_buffer();

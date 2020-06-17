@@ -6,7 +6,8 @@ namespace vNerve::bilibili::worker_supervisor
 
 supervisor_connection::supervisor_connection(const config::config_t config,
                                              const supervisor_buffer_handler buffer_handler,
-    const supervisor_connected_handler connected_handler)
+    supervisor_connected_handler connected_handler,
+    supervisor_connected_handler disconnected_handler)
     : _config(config),
       _guard(_context.get_executor()),
       _resolver(_context),
@@ -16,7 +17,8 @@ supervisor_connection::supervisor_connection(const config::config_t config,
       _retry_interval_sec((*config)["retry-interval-sec"].as<int>()),
       _supervisor_host((*config)["supervisor-host"].as<std::string>()),
       _supervisor_port(std::to_string((*config)["supervisor-port"].as<int>())),
-      _connected_handler(connected_handler)
+      _connected_handler(std::move(connected_handler)),
+      _disconnected_handler(std::move(disconnected_handler))
 {
     _thread = boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
     post(_context, boost::bind(&supervisor_connection::connect, this));
@@ -158,6 +160,7 @@ void supervisor_connection::on_connected(const boost::system::error_code& ec, st
 void supervisor_connection::on_failed()
 {
     force_close();
+    _disconnected_handler();
     reschedule_retry_timer();
 }
 }

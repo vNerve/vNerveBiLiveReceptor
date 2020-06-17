@@ -36,6 +36,7 @@ private:
     std::string _supervisor_port;
 
     supervisor_connected_handler _connected_handler;
+    supervisor_connected_handler _disconnected_handler;
 
     void connect();
     void force_close();
@@ -51,7 +52,7 @@ private:
 
 public:
     supervisor_connection(config::config_t config,
-                          supervisor_buffer_handler buffer_handler, supervisor_connected_handler connected_handler);
+                          supervisor_buffer_handler buffer_handler, supervisor_connected_handler connected_handler, supervisor_connected_handler disconnected_handler);
     ~supervisor_connection();
 
     // Take the ownership of msg.

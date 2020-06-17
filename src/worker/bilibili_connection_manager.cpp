@@ -4,6 +4,9 @@
 
 #include <boost/asio.hpp>
 #include <boost/thread.hpp>
+#include <boost/range/algorithm/copy.hpp>
+#include <boost/range/adaptors.hpp>
+#include <boost/algorithm/algorithm.hpp>
 #include <utility>
 #include <spdlog/spdlog.h>
 
@@ -45,28 +48,41 @@ vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
 
 void vNerve::bilibili::bilibili_connection_manager::open_connection(const int room_id)
 {
-    spdlog::info("[session] Connecting room {}", room_id);
-    spdlog::debug(
-        "[session] Connecting room {} with server {}:{}, resolving DN.",
-        room_id, _server_addr, _server_port_str);
-    _resolver.async_resolve(
-        _server_addr, _server_port_str,
-        boost::bind(&bilibili_connection_manager::on_resolved, this,
-                    boost::asio::placeholders::error,
-                    boost::asio::placeholders::iterator, room_id));
+    post(_context.get_executor(), [this, room_id]() -> void {
+        spdlog::info("[session] Connecting room {}", room_id);
+        spdlog::debug(
+            "[session] Connecting room {} with server {}:{}, resolving DN.",
+            room_id, _server_addr, _server_port_str);
+        _resolver.async_resolve(
+            _server_addr, _server_port_str,
+            boost::bind(&bilibili_connection_manager::on_resolved, this,
+                        boost::asio::placeholders::error,
+                        boost::asio::placeholders::iterator, room_id));
+    });
 }
 
 void vNerve::bilibili::bilibili_connection_manager::close_connection(int room_id)
 {
-    spdlog::info("[session] Disconnecting room {}", room_id);
-    auto iter = _connections.find(room_id);
-    if (iter == _connections.end())
-    {
-        spdlog::debug("[session] Room {} not found.", room_id);
-        return;
-    }
+    post(_context.get_executor(), [this, room_id]() -> void {
+        spdlog::info("[session] Disconnecting room {}", room_id);
+        auto iter = _connections.find(room_id);
+        if (iter == _connections.end())
+        {
+            spdlog::debug("[session] Room {} not found.", room_id);
+            return;
+        }
 
-    iter->second.close();
+        iter->second.close();
+    });
+}
+
+void vNerve::bilibili::bilibili_connection_manager::close_all_connections()
+{
+    post(_context.get_executor(), [this]() -> void {
+        spdlog::info("[session] Disconnecting all rooms.");
+        while (!_connections.empty())
+            _connections.begin()->second.close(false);
+    });
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_resolved(

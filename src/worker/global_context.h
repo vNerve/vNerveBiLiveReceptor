@@ -21,6 +21,7 @@ private:
     void on_room_data(int room_id, const borrowed_message*);
     void on_request_connect_room(int room_id);
     void on_request_disconnect_room(int room_id);
+    void on_supervisor_disconnected();
     void on_update_live_chat_config(const std::string& host, int port, const std::string& token);
 
 public:

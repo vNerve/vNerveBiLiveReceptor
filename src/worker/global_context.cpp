@@ -12,7 +12,8 @@ worker_global_context::worker_global_context(config::config_t config)
           std::bind(&worker_global_context::on_room_data, this, std::placeholders::_1, std::placeholders::_2)),
       _session(config,
           std::bind(&worker_global_context::on_request_connect_room, this, std::placeholders::_1),
-               std::bind(&worker_global_context::on_request_disconnect_room, this, std::placeholders::_1)),
+          std::bind(&worker_global_context::on_request_disconnect_room, this, std::placeholders::_1),
+               std::bind(&worker_global_context::on_supervisor_disconnected, this)),
       _token_updater(config, std::bind(&worker_global_context::on_update_live_chat_config, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3))
 {
 }
@@ -47,6 +48,11 @@ void worker_global_context::on_request_disconnect_room(int room_id)
 {
     spdlog::info("[g_ctxt] Disconnecting room. rid={}", room_id);
     _conn_manager.close_connection(room_id);
+}
+
+void worker_global_context::on_supervisor_disconnected()
+{
+    _conn_manager.close_all_connections();
 }
 
 void worker_global_context::on_update_live_chat_config(const std::string& host, int port, const std::string& token)

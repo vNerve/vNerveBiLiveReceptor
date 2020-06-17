@@ -14,14 +14,20 @@ void deleter_unsigned_char_array(unsigned char* buf)
     delete[] buf;
 }
 
-supervisor_session::supervisor_session(config::config_t config, room_operation_handler on_open_connection, room_operation_handler on_close_connection)
+supervisor_session::supervisor_session(
+    config::config_t config,
+    room_operation_handler on_open_connection,
+    room_operation_handler on_close_connection,
+    supervisor_operation_handler on_supervisor_disconnected)
     : _config(config),
       _connection(config,
                   std::bind(&supervisor_session::on_supervisor_message, this, std::placeholders::_1, std::placeholders::_2),
-                  std::bind(&supervisor_session::on_supervisor_connected, this)),
+                  std::bind(&supervisor_session::on_supervisor_connected, this),
+                  std::bind(&supervisor_session::on_supervisor_disconnected, this)),
       _max_rooms((*_config)["max-rooms"].as<int>()),
       _on_open_connection(std::move(on_open_connection)),
-      _on_close_connection(std::move(on_close_connection))
+      _on_close_connection(std::move(on_close_connection)),
+      _on_supervisor_disconnected(std::move(on_supervisor_disconnected))
 {
 
 }
@@ -36,6 +42,11 @@ void supervisor_session::on_supervisor_connected()
 
     spdlog::info("[sv_sess] Connected to supervisor. Sending ready packet with max_rooms={}", _max_rooms);
     _connection.publish_msg(packet, packet_length, deleter_unsigned_char_array);
+}
+
+void supervisor_session::on_supervisor_disconnected()
+{
+    _on_supervisor_disconnected();
 }
 
 void supervisor_session::on_supervisor_message(unsigned char* msg, size_t len)

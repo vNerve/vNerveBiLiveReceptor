@@ -68,6 +68,7 @@ public:
 
     void open_connection(int room_id);
     void close_connection(int room_id);
+    void close_all_connections();
 
     const boost::asio::const_buffer& get_heartbeat_buffer()
     {

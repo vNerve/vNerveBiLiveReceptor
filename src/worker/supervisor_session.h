@@ -10,6 +10,7 @@
 namespace vNerve::bilibili::worker_supervisor
 {
 using room_operation_handler = std::function<void(int)>;
+using supervisor_operation_handler = std::function<void()>;
 
 class supervisor_session
 {
@@ -20,8 +21,10 @@ class supervisor_session
 
     room_operation_handler _on_open_connection;
     room_operation_handler _on_close_connection;
+    supervisor_operation_handler _on_supervisor_disconnected;
 
     void on_supervisor_connected();
+    void on_supervisor_disconnected();
     ///
     /// Called when received a message from the supervisor
     /// The data which the function is called with DOESN'T contains header.
@@ -42,7 +45,7 @@ public:
     void on_room_failed(room_id_t room_id);
     void join();
 
-    supervisor_session(config::config_t config, room_operation_handler on_open_connection, room_operation_handler on_close_connection);
+    supervisor_session(config::config_t config, room_operation_handler on_open_connection, room_operation_handler on_close_connection, supervisor_operation_handler on_supervisor_disconnected);
     ~supervisor_session();
 };
 }
