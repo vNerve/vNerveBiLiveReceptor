@@ -149,7 +149,7 @@ const borrowed_message* serialize_buffer(char* buf, const size_t& length, const 
 
 
 #define GetMemberCheck(src, name, expr)                                  \
-    auto name##_iter = (src).FindMember((src));                          \
+    auto name##_iter = (src).FindMember(name);                          \
     ASSERT_TRACE(name##_iter != (src).MemberEnd() /* name = src[name] */)\
     auto const& name = name##_iter->value;                                      \
     ASSERT_TRACE(expr)

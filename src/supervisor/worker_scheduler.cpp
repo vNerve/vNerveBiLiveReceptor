@@ -204,6 +204,7 @@ void scheduler_session::check_worker_task_interval()
             auto identifier = it->identifier;
             auto room_id = it->room_id;
             it = delete_task<tasks_by_identifier_and_room_id>(it);
+            send_unassign(identifier, room_id);
             spdlog::warn(LOG_PREFIX "[<{0:016x},{1}>] Task exceeding max interval, unassigning!", identifier, room_id);
         }
     }
@@ -232,7 +233,7 @@ void scheduler_session::check_all_states()
         return;
     _last_checked = current_time;
 
-    spdlog::debug(LOG_PREFIX "Triggering check.");
+    SPDLOG_DEBUG(LOG_PREFIX "Triggering check.");
 
     // 检查最大间隔
     check_worker_task_interval();
@@ -283,7 +284,7 @@ void scheduler_session::check_all_states()
 
     for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
     {
-        SPDLOG_TRACE(LOG_PREFIX "Handling room {0}", it->first);
+        //SPDLOG_TRACE(LOG_PREFIX "Handling room {0}", it->first);
         room_id_t room_id = it->first;
         room_status& room = it->second;
 
