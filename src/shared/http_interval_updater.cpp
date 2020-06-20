@@ -124,7 +124,6 @@ void http_interval_updater::setup_curl()
     auto user_agent = on_user_agent();
     curl_easy_setopt(_curl, CURLOPT_URL, request_url);
     curl_easy_setopt(_curl, CURLOPT_CUSTOMREQUEST, request_method);
-    curl_easy_setopt(_curl, CURLOPT_USERAGENT, user_agent);
 
     SPDLOG_DEBUG("[http_upd] Request URL={}, method={}, ua={}", request_url, request_method, user_agent);
 

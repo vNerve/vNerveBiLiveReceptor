@@ -54,7 +54,22 @@ const size_t JSON_BUFFER_SIZE = 128 * 1024;
 const size_t PARSE_BUFFER_SIZE = 32 * 1024;
 const CRC::Table<uint32_t, 32> crc_lookup_table(CRC::CRC_32());
 
-robin_hood::unordered_map<decltype(robin_hood::hash_bytes("", 0)), function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>> command;
+struct string_view_cmp
+{
+    using is_transparent = void;
+    bool operator()(std::string_view const& a, std::string_view const& b) const { return a == b; }
+    bool operator()(std::string const& a, std::string_view const& b) const { return a == b; }
+    bool operator()(std::string const& a, std::string const& b) const { return a == b; }
+    bool operator()(std::string_view const& a, std::string const& b) const { return a == b; }
+};
+
+struct string_view_hash
+{
+    using is_transparent = void;
+    size_t operator()(const std::string& str) const { return robin_hood::hash_bytes(str.c_str(), str.size()); }
+    size_t operator()(const std::string_view& str) const { return robin_hood::hash_bytes(str.data(), str.size()); }
+};
+robin_hood::unordered_map<std::string, function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>, string_view_hash, string_view_cmp> command;
 
 class parse_context
 {
@@ -104,8 +119,7 @@ public:
             SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed: No cmd provided");
             return nullptr;
         }
-        auto cmd_hash = robin_hood::hash_bytes(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength());
-        auto cmd_func_iter = command.find(cmd_hash);
+        auto cmd_func_iter = command.find(std::string_view(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength()));
         if (cmd_func_iter == command.end())
         {
             // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
@@ -137,7 +151,7 @@ const borrowed_message* serialize_buffer(char* buf, const size_t& length, const 
 
 #define CMD(name)                                                                                    \
     bool cmd_##name(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*); \
-    bool cmd_##name##_inited = command.emplace(robin_hood::hash_bytes(#name, sizeof(#name)-1), cmd_##name).second;                            \
+    bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second;                            \
     bool cmd_##name(const unsigned int& room_id, const Document& document, const borrowed_bilibili_message& message, Arena* arena)
 
 #define ASSERT_TRACE(expr)                                                   \
