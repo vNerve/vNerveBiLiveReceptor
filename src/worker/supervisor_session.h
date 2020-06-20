@@ -18,6 +18,7 @@ class supervisor_session
     supervisor_connection _connection;
 
     int _max_rooms;
+    std::string _auth_code;
 
     room_operation_handler _on_open_connection;
     room_operation_handler _on_close_connection;

@@ -25,6 +25,7 @@ supervisor_session::supervisor_session(
                   std::bind(&supervisor_session::on_supervisor_connected, this),
                   std::bind(&supervisor_session::on_supervisor_disconnected, this)),
       _max_rooms((*_config)["max-rooms"].as<int>()),
+      _auth_code((*_config)["auth-code"].as<std::string>()),
       _on_open_connection(std::move(on_open_connection)),
       _on_close_connection(std::move(on_close_connection)),
       _on_supervisor_disconnected(std::move(on_supervisor_disconnected))
@@ -38,7 +39,7 @@ supervisor_session::~supervisor_session()
 
 void supervisor_session::on_supervisor_connected()
 {
-    auto [packet, packet_length] = generate_worker_ready_packet(_max_rooms);
+    auto [packet, packet_length] = generate_worker_ready_packet(_max_rooms, _auth_code);
 
     spdlog::info("[sv_sess] Connected to supervisor. Sending ready packet with max_rooms={}", _max_rooms);
     _connection.publish_msg(packet, packet_length, deleter_unsigned_char_array);

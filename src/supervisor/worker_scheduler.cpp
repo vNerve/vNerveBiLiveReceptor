@@ -44,6 +44,10 @@ scheduler_session::scheduler_session(const config::config_t config, supervisor_d
         std::bind(&scheduler_session::handle_new_worker, this,
                   std::placeholders::_1),
         std::bind(&scheduler_session::handle_worker_disconnect, this, std::placeholders::_1));
+
+    std::memset(_auth_code, 0, auth_code_size + 1);
+    auto const& auth_code_str = (*config)["auth-code"].as<std::string>();
+    std::memcpy(_auth_code, auth_code_str.c_str(), auth_code_str.size());
 }
 
 scheduler_session::~scheduler_session()
@@ -107,9 +111,10 @@ void scheduler_session::delete_worker(worker_status* worker)
 
 void scheduler_session::delete_and_disconnect_worker(worker_status* worker)
 {
-    spdlog::info(LOG_PREFIX "[{:016x}] Disconnecting worker.", worker->identifier);
+    auto identifier = worker->identifier;
+    spdlog::info(LOG_PREFIX "[{:016x}] Disconnecting worker.", identifier);
     delete_worker(worker);
-    _worker_session->disconnect_worker(worker->identifier);
+    _worker_session->disconnect_worker(identifier);
 }
 
 template <int N, class Iterator>
@@ -360,7 +365,7 @@ void scheduler_session::handle_buffer(
     identifier_t identifier, unsigned char* payload_data,
     size_t payload_len)
 {
-    if (payload_len < simple_message_header_length + 1)
+    if (payload_len < room_failed_payload_length)
         return; // Malformed
     auto op_code = payload_data[0]; // data[0]
     room_id_t room_id = boost::asio::detail::socket_ops::network_to_host_long(
@@ -387,6 +392,13 @@ void scheduler_session::handle_buffer(
 
     if (op_code == worker_ready_code)
     {
+        if (payload_len < worker_ready_payload_length
+            || 0 != std::strncmp(_auth_code, reinterpret_cast<char*>(payload_data) + 5, auth_code_size))
+        {
+            spdlog::info(LOG_PREFIX "[{:016x}] Auth failed. Disconnecting worker.", identifier);
+            delete_worker(worker_ptr);
+            _worker_session->disconnect_worker(identifier);
+        }
         // see simple_worker_proto.h
         auto max_rooms = room_id; // max_rooms is in the place of room_id
         spdlog::info(LOG_PREFIX "[{0:016x}] Worker ready. rmax={1}", identifier, max_rooms);

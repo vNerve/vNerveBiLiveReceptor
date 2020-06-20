@@ -36,6 +36,8 @@ private:
     supervisor_diag_data_handler _diag_data_handler;
     supervisor_server_tick_handler _tick_handler;
 
+    char _auth_code[auth_code_size + 1];
+
     ///
     /// 清空属于该 worker 的所有任务。\n
     /// Warning: not notifying the worker! \n
