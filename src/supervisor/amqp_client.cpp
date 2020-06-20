@@ -254,6 +254,7 @@ void amqp_context::on_ready()
             spdlog::info("[amqp] Successfully set up exchange {}!", _exchange);
         }
     );
+    _channel->declareExchange(_diag_exchange, AMQP::ExchangeType::fanout);
 }
 
 amqp_context::amqp_context(const config::config_t options)
@@ -266,6 +267,7 @@ amqp_context::amqp_context(const config::config_t options)
         (*options)["amqp-vhost"].as<std::string>(),
         (*options)["amqp-reconnect-interval-sec"].as<int>()),
       _exchange((*options)["amqp-exchange"].as<std::string>()),
+      _diag_exchange((*options)["amqp-diag-exchange"].as<std::string>()),
       _write_buf(new unsigned char[write_buf_default_size]),
       _write_buf_len(write_buf_default_size)
 {
@@ -295,6 +297,24 @@ void amqp_context::post_payload(const std::string_view routing_key, unsigned cha
         {
             spdlog::warn("[amqp] Error sending payload {} with routing key {} to exchange! msg:{}", _exchange, routing_key_buf, msg);
         });
+        delete[] buf;
+    });
+}
+
+void amqp_context::post_diag_payload(unsigned char const* payload, size_t len)
+{
+    auto buf = new unsigned char[len];
+    std::memcpy(buf, payload, len);
+    _connection.post([this, buf, len]() {
+        if (!_available || !_connection.connection() || !_channel)
+        {
+            delete[] buf;
+            return;
+        }
+        _channel->publish(_diag_exchange, "", reinterpret_cast<char*>(buf), len)
+            .onError([this](const char* msg) -> void {
+                spdlog::warn("[amqp] Error sending diagnostic payload {} to exchange! msg:{}", _exchange, msg);
+            });
         delete[] buf;
     });
 }

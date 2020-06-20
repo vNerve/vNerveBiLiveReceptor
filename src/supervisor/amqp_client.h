@@ -75,6 +75,7 @@ private:
     AMQP::Channel* _channel = nullptr;
 
     std::string _exchange;
+    std::string _diag_exchange;
     bool _available = false;
 
     unsigned char* _write_buf;
@@ -87,5 +88,6 @@ public:
     ~amqp_context();
 
     void post_payload(std::string_view routing_key, unsigned char const* payload, size_t len);
+    void post_diag_payload(unsigned char const* payload, size_t len);
 };
 }

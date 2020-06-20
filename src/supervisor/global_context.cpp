@@ -11,6 +11,7 @@ supervisor_global_context::supervisor_global_context(const config::config_t conf
           std::make_shared<worker_supervisor::scheduler_session>(
               config,
               std::bind(&supervisor_global_context::on_worker_data, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+              std::bind(&supervisor_global_context::on_diagnostic_data, this, std::placeholders::_1, std::placeholders::_2),
               std::bind(&supervisor_global_context::on_server_tick, this))),
       _room_list_updater(config, std::bind(&supervisor_global_context::on_vtuber_list_update, this, std::placeholders::_1))
 {
@@ -34,6 +35,11 @@ void supervisor_global_context::on_worker_data(checksum_t checksum, std::string_
 {
     if (_deduplicate_context.check_and_add(checksum))
         _amqp_context.post_payload(routing_key, data, len);
+}
+
+void supervisor_global_context::on_diagnostic_data(unsigned char const* data, size_t len)
+{
+    _amqp_context.post_diag_payload(data, len);
 }
 
 void supervisor_global_context::on_server_tick()

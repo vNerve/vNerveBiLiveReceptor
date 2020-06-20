@@ -9,6 +9,7 @@ const std::string DEFAULT_VNERVE_AMQP_PASSWORD = "guest";
 const std::string DEFAULT_VNERVE_AMQP_VHOST = "/";
 const int DEFAULT_VNERVE_AMQP_RECONNECT_SEC = 30;
 const std::string DEFAULT_VNERVE_AMQP_EXCHANGE = "vNerve";
+const std::string DEFAULT_VNERVE_AMQP_DIAG_EXCHANGE = "vNerveDiag";
 
 const std::string DEFAULT_VNERVE_SERVER = "http://localhost:6161/";
 const int DEFAULT_VNERVE_UPDATE_INTERVAL_MINUTES = 30;
@@ -44,6 +45,7 @@ boost::program_options::options_description create_description()
         ("amqp-vhost", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_VHOST), "vNerve AMQP Server vHost.")
         ("amqp-reconnect-interval-sec", value<int>()->default_value(DEFAULT_VNERVE_AMQP_RECONNECT_SEC), "Interval(sec) between reconnecting to AMQP broker.")
         ("amqp-exchange", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_EXCHANGE), "Exchange name of vNerve AMQP service.")
+        ("amqp-diag-exchange", value<std::string>()->default_value(DEFAULT_VNERVE_AMQP_DIAG_EXCHANGE), "Exchange name of vNerve AMQP Diagnostics service.")
     ;
 
     auto descRoomList = options_description("vNerve bilibili info server options");

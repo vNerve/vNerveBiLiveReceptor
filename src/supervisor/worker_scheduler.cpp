@@ -24,7 +24,7 @@ bool compare_worker(const worker_status* lhs, const worker_status* rhs)
 
 // =============================== scheduler_session ===============================
 
-scheduler_session::scheduler_session(const config::config_t config, supervisor_data_handler data_handler, supervisor_server_tick_handler tick_handler)
+scheduler_session::scheduler_session(const config::config_t config, supervisor_data_handler data_handler, supervisor_diag_data_handler diag_data_handler, supervisor_server_tick_handler tick_handler)
     : _config(config),
       _min_check_interval(
           std::chrono::milliseconds(
@@ -32,6 +32,7 @@ scheduler_session::scheduler_session(const config::config_t config, supervisor_d
       _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>())),
       _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>())),
       _data_handler(std::move(data_handler)),
+      _diag_data_handler(std::move(diag_data_handler)),
       _tick_handler(std::move(tick_handler))
 {
     _worker_session = std::make_shared<worker_connection_manager>(
@@ -282,6 +283,8 @@ void scheduler_session::check_all_states()
     max_tasks_per_room = std::min(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
     SPDLOG_TRACE(LOG_PREFIX "Use max t/rm: {}", max_tasks_per_room);
 
+    update_diagnostics(max_tasks_per_room);
+
     for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
     {
         //SPDLOG_TRACE(LOG_PREFIX "Handling room {0}", it->first);
@@ -318,6 +321,12 @@ void scheduler_session::check_all_states()
         //if (room.current_connections < 1)
             //spdlog::warn(LOG_PREFIX "Room {0} can't get any worker!", room_id);
     }
+}
+
+void scheduler_session::update_diagnostics(int max_tasks_per_room)
+{
+    _diag_context.update_diagnostics(_rooms, _workers, _tasks, max_tasks_per_room);
+    _diag_data_handler(_diag_context.data(), _diag_context.size());
 }
 
 void scheduler_session::handle_new_worker(

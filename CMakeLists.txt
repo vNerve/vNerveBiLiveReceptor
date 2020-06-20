@@ -55,7 +55,10 @@ set(SUPERVISOR_SOURCE_FILES
     "src/supervisor/worker_scheduler.cpp"
     "src/supervisor/amqp_client.cpp"
     "src/supervisor/deduplicate_context.cpp"
+    "src/supervisor/diagnostic_context.cpp"
     "src/supervisor/global_context.cpp"
+
+    "proto/cpp/vNerve/bilibili/live/diagnostics.pb.cc"
 )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(

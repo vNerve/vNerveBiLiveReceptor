@@ -19,6 +19,7 @@ private:
 
     void on_vtuber_list_update(std::vector<int>&);
     void on_worker_data(checksum_t, std::string_view, unsigned char const*, size_t);
+    void on_diagnostic_data(unsigned char const*, size_t);
     void on_server_tick();
 
 public:
