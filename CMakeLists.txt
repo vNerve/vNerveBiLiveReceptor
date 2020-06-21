@@ -3,6 +3,7 @@ cmake_policy(SET CMP0074 NEW)
 
 project(vNerveBiLiveReceptor)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 include(conan.cmake)
 conan_check(REQUIRED)
@@ -73,14 +74,17 @@ if (WIN32)
     list(APPEND CONAN_OPTIONS "libcurl:with_winssl=True")
     list(APPEND CONAN_OPTIONS "libcurl:with_openssl=False")
 endif()
+if (UNIX)
+    list(APPEND CONAN_OPTIONS "amqp-cpp:linux_tcp_module=False")
+endif()
 
 conan_cmake_run(REQUIRES
                     "boost/1.72.0"
                     "zlib/1.2.11"
-                    "fmt/6.1.2"
+                    "fmt/6.2.0"
                     "spdlog/1.5.0"
                     "rapidjson/1.1.0"
-                    "protobuf/3.11.4@charliejiang/stable"
+                    "protobuf/3.11.4"
                     "libcurl/7.70.0"
                     "amqp-cpp/4.1.6"
                 BASIC_SETUP CMAKE_TARGETS
@@ -94,8 +98,8 @@ if (WIN32)
     target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
 endif()
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG")
+    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG")
 endif()
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::boost

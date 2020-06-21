@@ -30,7 +30,7 @@ void amqp_asio_connection::post(std::function<void()> func)
 
 void amqp_asio_connection::onData(AMQP::Connection* connection, const char* buffer, size_t size)
 {
-    if (connection != _connection && !_initializing || !_socket)
+    if (((connection != _connection) && !_initializing) || !_socket)
         return;
 
     SPDLOG_TRACE("[amqp] Sending data. len={}", size);
@@ -48,7 +48,7 @@ void amqp_asio_connection::onData(AMQP::Connection* connection, const char* buff
 
 void amqp_asio_connection::onError(AMQP::Connection* connection, const char* message)
 {
-    if (connection != _connection && !_initializing || !_socket)
+    if (((connection != _connection) && !_initializing) || !_socket)
         return;
     spdlog::error("[amqp] Error handling data from AMQP broker! Disconnecting err:{}", message);
     _initializing = false;
@@ -65,7 +65,7 @@ void amqp_asio_connection::onReady(AMQP::Connection* connection)
 
 void amqp_asio_connection::onClosed(AMQP::Connection* connection)
 {
-    if (connection != _connection && !_initializing || !_socket)
+    if (((connection != _connection) && !_initializing) || !_socket)
         return;
     _initializing = false;
     spdlog::info("[amqp] AMQP broker disconnecting.");
@@ -74,7 +74,7 @@ void amqp_asio_connection::onClosed(AMQP::Connection* connection)
 
 uint16_t amqp_asio_connection::onNegotiate(AMQP::Connection* connection, uint16_t interval)
 {
-    if (connection != _connection && !_initializing || !_socket)
+    if (((connection != _connection) && !_initializing) || !_socket)
         return interval;
     _heartbeat_interval_sec = std::min(static_cast<int>(interval), MIN_HEARTBEAT_LEN_SEC) / 2;
     spdlog::debug("[amqp] Using heartbeat interval = {}sec(s).", _heartbeat_interval_sec);

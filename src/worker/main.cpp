@@ -10,7 +10,7 @@ vNerve::bilibili::config::config_t global_config;
 int main(int argc, char** argv)
 {
     // TODO main.
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::debug);
     global_config = vNerve::bilibili::config::parse_options(argc, argv);
    // auto session = std::make_shared<vNerve::bilibili::bilibili_connection_manager>(opt, [](int room_id) -> void {  }, [](int room_id, vNerve::bilibili::borrowed_message* msg) -> void {  });
     //session->open_connection(21752681);

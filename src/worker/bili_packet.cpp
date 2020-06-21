@@ -224,7 +224,7 @@ const size_t join_room_json_max_length = 256;
 std::string generate_join_room_packet(int room_id, int proto_ver, std::string_view token)
 {
     char payload[join_room_json_max_length];
-    sprintf_s(payload, join_room_json_fmt, proto_ver, room_id, token.data());
+    snprintf(payload, join_room_json_max_length, join_room_json_fmt, proto_ver, room_id, token.data());
     size_t payload_size = strnlen(payload, join_room_json_max_length);
     auto header = bilibili_packet_header();
     header.length(header.header_length() + payload_size);

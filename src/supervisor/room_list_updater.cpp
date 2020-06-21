@@ -51,7 +51,7 @@ void vtuber_info_updater::on_updated(std::string_view body)
         return;
     }
     auto all_bilibili_info_iter =
-        data_iter->value.GetObjectA().FindMember("allBilibiliInfo");
+        data_iter->value.GetObject().FindMember("allBilibiliInfo");
     if (all_bilibili_info_iter == data_iter->value.MemberEnd() || !all_bilibili_info_iter->value.IsArray())
     {
         spdlog::warn("[room_list_upd] Malformed vNerve GraphQL Response: allBilibiliInfo isn't array.");
@@ -63,11 +63,11 @@ void vtuber_info_updater::on_updated(std::string_view body)
     {
         if (!element.IsObject())
             continue;
-        auto obj = element.GetObjectA();
+        auto obj = element.GetObject();
         auto live_info_iter = obj.FindMember("liveInfo");
         if (live_info_iter == obj.MemberEnd() || !live_info_iter->value.IsObject())
             continue;
-        auto live_info_obj = live_info_iter->value.GetObjectA();
+        auto live_info_obj = live_info_iter->value.GetObject();
         auto room_id_iter = live_info_obj.FindMember("roomId");
         if (room_id_iter == obj.MemberEnd() || !room_id_iter->value.IsInt())
             continue;

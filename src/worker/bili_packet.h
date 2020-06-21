@@ -12,10 +12,6 @@ class malformed_packet : public std::exception
 {
 public:
     malformed_packet() = default;
-    explicit malformed_packet(char const* _Message) : exception(_Message) {}
-    malformed_packet(char const* _Message, int i) : exception(_Message, i) {}
-    explicit malformed_packet(exception const& _Other) : exception(_Other) {}
-    malformed_packet(const malformed_packet& other) : std::exception(other) {}
     malformed_packet(malformed_packet&& other) noexcept
         : std::exception(std::move(other))
     {
@@ -45,16 +41,17 @@ struct bilibili_packet_header
     uint16_t _protocol_version;
     uint32_t _op_code;
     uint32_t _sequence_id;
+#define NTOH_TYPED(type) boost::asio::detail::socket_ops::network_to_host_##type
+#define HTON_TYPED(type) boost::asio::detail::socket_ops::host_to_network_##type
+#define PACKET_HEADER_MEMBER(name) _##name
 #define PACKET_ACCESSOR(name, type1, type2)                                  \
     inline type1 name() const                                                \
     {                                                                        \
-        return boost::asio::detail::socket_ops::network_to_host_##type2(     \
-            _##name##);                                                      \
+        return NTOH_TYPED(type2)(PACKET_HEADER_MEMBER(name));                                                      \
     }                                                                        \
     inline void name(type1 value)                                            \
     {                                                                        \
-        _##name## =                                                          \
-            boost::asio::detail::socket_ops::host_to_network_##type2(value); \
+        PACKET_HEADER_MEMBER(name) = HTON_TYPED(type2)(value);                                       \
     }
 #define PACKET_ACCESSOR_LONG(name) PACKET_ACCESSOR(name, uint32_t, long)
 #define PACKET_ACCESSOR_SHORT(name) PACKET_ACCESSOR(name, uint16_t, short)
@@ -68,6 +65,9 @@ struct bilibili_packet_header
 #undef PACKET_ACCESSOR_LONG
 #undef PACKET_ACCESSOR_SHORT
 #undef PACKET_ACCESSOR
+#undef NTOH_TYPED
+#undef HTON_TYPED
+#undef PACKET_HEADER_MEMBER
 
     bilibili_packet_header()
     {
