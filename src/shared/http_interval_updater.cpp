@@ -8,7 +8,7 @@ namespace vNerve::bilibili
 
 CURLcode curl_initialized = curl_global_init(CURL_GLOBAL_ALL);
 const char* CURL_ACCEPT_ENCODING = "gzip, deflate, br";
-const int CURL_MAX_SIZE = 128 * 1024;  // 128 K
+const int CURL_MAX_SIZE = 1024 * 1024;  // 128 K
 http_interval_updater::http_interval_updater(int update_interval_min, int timeout_sec)
     : _guard(_context.get_executor()),
       _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
