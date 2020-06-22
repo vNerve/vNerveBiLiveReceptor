@@ -63,7 +63,7 @@ void simple_worker_proto_handler::on_receive(const boost::system::error_code& ec
     if (ec)
     {
         if (ec.value() == boost::asio::error::operation_aborted)
-            SPDLOG_DEBUG(LOG_PREFIX "{} Cancelling async reading.", _log_prefix);  // closing socket.
+            SPDLOG_DEBUG(LOG_PREFIX "Cancelling async reading.");  // closing socket.
         else
             _close_handler();
         _socket = std::shared_ptr<boost::asio::ip::tcp::socket>(nullptr);

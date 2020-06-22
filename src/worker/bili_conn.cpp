@@ -95,8 +95,7 @@ void vNerve::bilibili::bilibili_connection::on_join_room_sent(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] [room={}] Cancelling handshake sending.",
-                          _room_id);
+            spdlog::debug("[conn] Cancelling handshake sending.");
             return;  // closing socket.
         }
         spdlog::warn(
@@ -118,8 +117,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_sent(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] [room={}] Cancelling heartbeat sending.",
-                          _room_id);
+            spdlog::debug("[conn] Cancelling heartbeat sending.");
             return;  // closing socket.
         }
         spdlog::warn(
@@ -140,8 +138,8 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_tick(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] [room={}] Cancelling heartbeat timer.",
-                          _room_id);
+            spdlog::debug("[conn] Cancelling heartbeat timer.");
+            return;  // closing socket.
         }
         spdlog::warn("[conn] [room={}] Error in heartbeat tick! err:{}: {}",
                      _room_id, err.value(), err.message());
@@ -168,8 +166,7 @@ void vNerve::bilibili::bilibili_connection::on_receive(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] [room={}] Cancelling async reading.",
-                          _room_id);
+            spdlog::debug("[conn]  Cancelling async reading.");
             return;  // closing socket.
         }
         spdlog::warn("[conn] [room={}] Error in async recv! err:{}: {}",

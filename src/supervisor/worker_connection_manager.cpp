@@ -7,60 +7,6 @@
 
 namespace vNerve::bilibili::worker_supervisor
 {
-void worker_session::start_async_write()
-{
-    int count = static_cast<int>(_write_queue.size());
-    if (count > 1)
-    {
-        SPDLOG_TRACE(LOG_PREFIX "[{:016x}] Starting batch async write. BufferCount={}", _identifier, count);
-        std::vector<boost::asio::const_buffer> buffers(count);
-        for (int i = 0; i < count; i++)
-        {
-            auto& buf_iter = _write_queue[i];
-            SPDLOG_TRACE(LOG_PREFIX "[{:016x}] Buffer #{}: Len={}", i, std::get<1>(buf_iter));
-            buffers.emplace_back(std::get<0>(buf_iter), std::get<1>(buf_iter));
-        }
-        async_write(
-            *_socket,
-            buffers,
-            boost::bind(&worker_session::on_written, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
-                              count));
-    }
-    else
-    {
-        // Single buffer: avoid vector allocating.
-        auto& buf_iter = _write_queue.front();
-        SPDLOG_TRACE(LOG_PREFIX "[{:016x}] Starting async write. Len={}", _identifier, std::get<1>(buf_iter));
-        async_write(
-            *_socket,
-            boost::asio::buffer(std::get<0>(buf_iter), std::get<1>(buf_iter)),
-            boost::bind(&worker_session::on_written, this, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred,
-                            1));
-    }
-}
-
-void worker_session::on_written(const boost::system::error_code& ec, size_t byte_transferred, int buffer_count)
-{
-    buffer_count = std::min(buffer_count, static_cast<int>(_write_queue.size()));
-    for (int i = 0; i < buffer_count; i++)
-    {
-        auto& buf_iter = _write_queue.front();
-        std::get<2>(buf_iter)(std::get<0>(buf_iter));
-        _write_queue.pop_front();
-    }
-
-    if (ec.value() == boost::asio::error::operation_aborted)
-        return;
-    if (ec)
-    {
-        spdlog::warn(LOG_PREFIX "[{:016x}] Error writing to socket! Disconnecting. err: {}:{}", _identifier, ec.value(), ec.message());
-        disconnect(true);
-    }
-    SPDLOG_DEBUG(LOG_PREFIX "[{:016x}] Written {} bytes.", byte_transferred);
-    if (!_write_queue.empty())
-        start_async_write();
-}
-
 worker_session::worker_session(
     identifier_t identifier,
     std::shared_ptr<boost::asio::ip::tcp::socket> socket,

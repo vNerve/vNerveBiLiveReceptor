@@ -32,9 +32,6 @@ private:
     supervisor_worker_disconnect_handler _disconnect_handler;
     std::deque<std::tuple<unsigned char*, size_t, supervisor_buffer_deleter>> _write_queue;
 
-    void start_async_write();
-    void on_written(const boost::system::error_code& ec, size_t byte_transferred, int buffer_count);
-
 public:
     worker_session(
         identifier_t identifier,
