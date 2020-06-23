@@ -39,6 +39,10 @@ struct worker_status
     ///
     /// Not necessarily real-time!
     int current_connections = 0;
+    /// <summary>
+    /// For cool-down.
+    /// </summary>
+    int remaining_this_bunch = 0;
 
     ///
     /// 用于断线惩罚。

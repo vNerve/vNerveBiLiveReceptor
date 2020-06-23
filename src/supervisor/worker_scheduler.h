@@ -31,6 +31,7 @@ private:
     std::chrono::system_clock::duration _min_check_interval;
     std::chrono::system_clock::duration _worker_interval_threshold;
     std::chrono::system_clock::duration _worker_penalty;
+    int _max_new_tasks_per_bunch;
 
     supervisor_data_handler _data_handler;
     supervisor_diag_data_handler _diag_data_handler;

@@ -31,6 +31,7 @@ scheduler_session::scheduler_session(const config::config_t config, supervisor_d
               (*config)["min-check-interval-ms"].as<int>())),
       _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>())),
       _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>())),
+      _max_new_tasks_per_bunch((*config)["worker-max-new-tasks-per-bunch"].as<int>()),
       _data_handler(std::move(data_handler)),
       _diag_data_handler(std::move(diag_data_handler)),
       _tick_handler(std::move(tick_handler))
@@ -167,6 +168,7 @@ void scheduler_session::assign_task(worker_status* worker, room_status* room, st
     send_assign(worker->identifier, room->room_id);
     worker->current_connections++;
     room->current_connections++;
+    worker->remaining_this_bunch--;
     spdlog::debug(LOG_PREFIX "[{0:016x}] Assigning task to room {1}. N_wk={2}, N_rm={3}", worker->identifier, room->room_id, worker->current_connections, room->current_connections);
 }
 
@@ -275,6 +277,7 @@ void scheduler_session::check_all_states()
         {
             workers_available.push_back(&worker);
             worker.punished = false;
+            worker.remaining_this_bunch = _max_new_tasks_per_bunch;
         }
     //if (workers_available.empty())
     //{
@@ -312,13 +315,18 @@ void scheduler_session::check_all_states()
         {
             // Not enough workers on this room.
             spdlog::debug(LOG_PREFIX "Not enough workers on room {0}({2}). Try to assign {1} rooms.", room_id, underkill, room.current_connections);
-            for (worker_status* worker : workers_available)
+            for (auto iter = workers_available.begin(); iter != workers_available.end();)
             {
+                auto worker = *iter;
                 if (underkill <= 0)
                     break;
-                if (worker->current_connections > worker->max_rooms)
+                if (worker->current_connections > worker->max_rooms || worker->remaining_this_bunch <= 0)
+                {
+                    iter = workers_available.erase(iter);
                     continue;
-                assign_task(worker, &room, current_time); // Will not actually assign if the task exists, so safe.
+                }
+                assign_task(worker, &room, current_time);  // Will not actually assign if the task exists, so safe.
+                ++iter;
                 --underkill;
             }
         }
