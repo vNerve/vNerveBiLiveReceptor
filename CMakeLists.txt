@@ -83,7 +83,7 @@ conan_cmake_run(REQUIRES
                     "boost/1.72.0"
                     "zlib/1.2.11"
                     "fmt/6.2.0"
-                    "spdlog/1.5.0"
+                    "spdlog/1.6.1"
                     "rapidjson/1.1.0"
                     "protobuf/3.11.4"
                     "libcurl/7.70.0"

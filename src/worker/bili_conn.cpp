@@ -27,7 +27,7 @@ vNerve::bilibili::bilibili_connection::bilibili_connection(
     auto str = new std::string(generate_join_room_packet(
         room_id, session->get_options()["protocol-ver"].as<int>(), token));
     auto buffer = boost::asio::buffer(*str);
-    spdlog::debug(
+    SPDLOG_TRACE(
         "[conn] [room={}] Sending handshake packet with payload(len={}): {:Xs}",
         room_id, str->length(),
         spdlog::to_hex(str->c_str(), str->c_str() + str->length()));
@@ -46,7 +46,7 @@ vNerve::bilibili::bilibili_connection::~bilibili_connection()
 
 void vNerve::bilibili::bilibili_connection::reschedule_timer()
 {
-    spdlog::debug("[conn] [room={}] Scheduling heartbeat, interval={}",
+    SPDLOG_DEBUG("[conn] [room={}] Scheduling heartbeat, interval={}",
                   _room_id, _heartbeat_interval_sec);
     _heartbeat_timer->expires_from_now(
         boost::posix_time::seconds(_heartbeat_interval_sec));
@@ -57,7 +57,7 @@ void vNerve::bilibili::bilibili_connection::reschedule_timer()
 
 void vNerve::bilibili::bilibili_connection::start_read()
 {
-    spdlog::trace(
+    SPDLOG_TRACE(
         "[conn] [room={}] Starting next async read. offset={}, size={}/{}",
         _room_id, _read_buffer_offset, _read_buffer_size - _read_buffer_offset,
         _read_buffer_size);
@@ -95,7 +95,7 @@ void vNerve::bilibili::bilibili_connection::on_join_room_sent(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] Cancelling handshake sending.");
+            SPDLOG_DEBUG("[conn] Cancelling handshake sending.");
             return;  // closing socket.
         }
         spdlog::warn(
@@ -104,7 +104,7 @@ void vNerve::bilibili::bilibili_connection::on_join_room_sent(
         close(true);
     }
 
-    spdlog::debug(
+    SPDLOG_DEBUG(
         "[conn] [room={}] Sent handshake packet. Bytes transferred: {}",
         _room_id, transferred);
     reschedule_timer();
@@ -117,7 +117,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_sent(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] Cancelling heartbeat sending.");
+            SPDLOG_DEBUG("[conn] Cancelling heartbeat sending.");
             return;  // closing socket.
         }
         spdlog::warn(
@@ -126,7 +126,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_sent(
         close(true);
     }
     // nothing to do.
-    spdlog::debug(
+    SPDLOG_DEBUG(
         "[conn] [room={}] Sent heartbeat packet. Bytes transferred: {}",
         _room_id, transferred);
 }
@@ -138,7 +138,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_tick(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn] Cancelling heartbeat timer.");
+            SPDLOG_DEBUG("[conn] Cancelling heartbeat timer.");
             return;  // closing socket.
         }
         spdlog::warn("[conn] [room={}] Error in heartbeat tick! err:{}: {}",
@@ -148,7 +148,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_tick(
 
     auto& buf = _session->get_heartbeat_buffer();
     auto buf_ptr = reinterpret_cast<const char*>(buf.data());
-    spdlog::debug(
+    SPDLOG_DEBUG(
         "[conn] [room={}] Sending heartbeat packet with payload(len={}): {:Xs}",
         _room_id, buf.size(), spdlog::to_hex(buf_ptr, buf_ptr + buf.size()));
     _socket->async_send(
@@ -166,7 +166,7 @@ void vNerve::bilibili::bilibili_connection::on_receive(
     {
         if (err.value() == boost::asio::error::operation_aborted)
         {
-            spdlog::debug("[conn]  Cancelling async reading.");
+            SPDLOG_DEBUG("[conn] Cancelling async reading.");
             return;  // closing socket.
         }
         spdlog::warn("[conn] [room={}] Error in async recv! err:{}: {}",
@@ -174,7 +174,7 @@ void vNerve::bilibili::bilibili_connection::on_receive(
         close(true);
     }
 
-    spdlog::debug("[conn] [room={}] Received data block(len={})", _room_id,
+    SPDLOG_DEBUG("[conn] [room={}] Received data block(len={})", _room_id,
                   transferred);
     try
     {
