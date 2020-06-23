@@ -33,7 +33,7 @@ void supervisor_global_context::on_vtuber_list_update(std::vector<int>& room_ids
 
 void supervisor_global_context::on_worker_data(checksum_t checksum, std::string_view routing_key, unsigned char const* data, size_t len)
 {
-    if (_deduplicate_context.check_and_add(checksum))
+    if (checksum == 0 || _deduplicate_context.check_and_add(checksum)) // see simple_worker_proto.h
         _amqp_context.post_payload(routing_key, data, len);
 }
 

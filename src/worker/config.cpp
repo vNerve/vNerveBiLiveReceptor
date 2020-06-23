@@ -3,7 +3,7 @@
 namespace vNerve::bilibili::config
 {
 // Default options.
-const int DEFAULT_HEARTBEAT_TIMEOUT_SEC = 40;
+const int DEFAULT_HEARTBEAT_TIMEOUT_SEC = 25;
 const std::string DEFAULT_CHAT_SERVER = "broadcastlv.chat.bilibili.com";
 const std::string DEFAULT_CHAT_SERVER_CONFIG_URL = "https://api.live.bilibili.com/room/v1/Danmu/getConf";
 const std::string DEFAULT_CHAT_SERVER_CONFIG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36";

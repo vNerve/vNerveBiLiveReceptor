@@ -135,7 +135,17 @@ public:
 
     const borrowed_bilibili_message* serialize(const long long int popularity, const unsigned int& room_id)
     {
-        return nullptr;
+        // TODO routing_key
+        //_borrowed_bilibili_message.routing_key = "";
+        _borrowed_bilibili_message.crc32 = 0; // see simple_worker_proto.h
+        auto message = _borrowed_bilibili_message._message;
+        message->Clear();
+
+        auto popularity_message = message->mutable_popularity_change();
+        popularity_message->set_popularity(popularity);
+        message->set_room_id(room_id);
+
+        return &_borrowed_bilibili_message;
     }
     ~parse_context() {}
 };

@@ -34,6 +34,7 @@ inline const unsigned int worker_data_payload_header_length = 1 + room_id_length
  *
  * byte      uint32  int32 char[24]
  * OP_CODE=0 ROOM_ID CRC32 ROUTING_KEY PAYLOAD
+ * CRC32 = 0: Always send.
  *
  * OP_CODE ROOM_ID
  */

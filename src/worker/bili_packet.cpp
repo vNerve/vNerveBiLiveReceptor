@@ -194,8 +194,9 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
                         buf + sizeof(bilibili_packet_header)));
             SPDLOG_TRACE("[packet] [{:p}] Heartbeat response: Popularity={}",
                           buf, popularity);
+            const borrowed_message* msg = serialize_popularity(popularity, room_id);
+            handler(msg);
             break;
-            // TODO send
         }
         case join_room_resp:
             SPDLOG_TRACE("[packet] [{:p}] Successfully joined room.", buf);
