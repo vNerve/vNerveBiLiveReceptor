@@ -14,14 +14,14 @@ std::pair<unsigned char*, size_t> generate_assign_unassign_base_packet(room_id_t
     return std::pair(buf, size);
 }
 
-std::pair<unsigned char*, size_t> worker_supervisor::generate_assign_packet(room_id_t room_id)
+std::pair<unsigned char*, size_t> generate_assign_packet(room_id_t room_id)
 {
     auto buf = generate_assign_unassign_base_packet(room_id);
     buf.first[simple_message_header_length] = assign_room_code;
     return buf;
 }
 
-std::pair<unsigned char*, size_t> worker_supervisor::generate_unassign_packet(room_id_t room_id)
+std::pair<unsigned char*, size_t> generate_unassign_packet(room_id_t room_id)
 {
     auto buf = generate_assign_unassign_base_packet(room_id);
     buf.first[simple_message_header_length] = unassign_room_code;
