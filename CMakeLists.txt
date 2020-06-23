@@ -16,6 +16,7 @@ set(WORKER_SOURCE_FILES
     "src/shared/simple_worker_proto_handler.cpp"
     "src/shared/asio_socket_write_helper.cpp"
     "src/shared/http_interval_updater.cpp"
+    "src/shared/windows_minidump.cpp"
 
     "src/worker/main.cpp"
     "src/worker/config.cpp"

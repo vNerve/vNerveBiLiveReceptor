@@ -219,7 +219,7 @@ std::string generate_heartbeat_packet()
 }
 
 const char* join_room_json_fmt =
-    R"({"clientver":"1.6.3","platform":"web","protover":%d,"roomid":%d,"uid":0,"type":2, "auth":"%s"})";
+    R"({"clientver":"1.11.0","platform":"web","protover":%d,"roomid":%d,"uid":0,"type":2,"key":"%s"})";
 const size_t join_room_json_max_length = 256;
 std::string generate_join_room_packet(int room_id, int proto_ver, std::string_view token)
 {

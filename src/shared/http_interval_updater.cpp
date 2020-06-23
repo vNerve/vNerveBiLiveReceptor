@@ -17,10 +17,8 @@ http_interval_updater::http_interval_updater(int update_interval_min, int timeou
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
 
-    _timer->expires_from_now(boost::posix_time::seconds(1));
-    _timer->async_wait(
-        boost::bind(&http_interval_updater::on_timer_tick, this,
-                    boost::asio::placeholders::error));
+    post(_context.get_executor(), boost::bind(&http_interval_updater::on_timer_tick, this,
+                                              boost::system::error_code()));
 
     _curl = curl_easy_init();
     if (!_curl)
