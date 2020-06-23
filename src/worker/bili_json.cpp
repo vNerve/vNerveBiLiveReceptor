@@ -132,6 +132,11 @@ public:
         SPDLOG_TRACE("[bili_json] Failed serializing message.");
         return nullptr;
     }
+
+    const borrowed_bilibili_message* serialize(const long long int popularity, const unsigned int& room_id)
+    {
+        return nullptr;
+    }
     ~parse_context() {}
 };
 
@@ -147,6 +152,11 @@ parse_context* get_parse_context()
 const borrowed_message* serialize_buffer(char* buf, const size_t& length, const unsigned int& room_id)
 {
     return get_parse_context()->serialize(buf, length, room_id);
+}
+
+const borrowed_message* serialize_popularity(const long long popularity, const unsigned& room_id)
+{
+    return get_parse_context()->serialize(popularity, room_id);
 }
 
 #define CMD(name)                                                                                    \

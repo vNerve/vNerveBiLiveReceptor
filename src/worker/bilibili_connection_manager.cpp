@@ -48,32 +48,30 @@ vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
 
 void vNerve::bilibili::bilibili_connection_manager::open_connection(const int room_id)
 {
-    post(_context.get_executor(), [this, room_id]() -> void {
-        spdlog::info("[session] Connecting room {}", room_id);
-        spdlog::debug(
-            "[session] Connecting room {} with server {}:{}, resolving DN.",
-            room_id, _server_addr, _server_port_str);
-        _resolver.async_resolve(
-            _server_addr, _server_port_str,
-            boost::bind(&bilibili_connection_manager::on_resolved, this,
-                        boost::asio::placeholders::error,
-                        boost::asio::placeholders::iterator, room_id));
-    });
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
+    spdlog::info("[session] Connecting room {}", room_id);
+    spdlog::debug(
+        "[session] Connecting room {} with server {}:{}, resolving DN.",
+        room_id, _server_addr, _server_port_str);
+    _resolver.async_resolve(
+        _server_addr, _server_port_str,
+        boost::bind(&bilibili_connection_manager::on_resolved, this,
+                    boost::asio::placeholders::error,
+                    boost::asio::placeholders::iterator, room_id));
 }
 
 void vNerve::bilibili::bilibili_connection_manager::close_connection(int room_id)
 {
-    post(_context.get_executor(), [this, room_id]() -> void {
-        spdlog::info("[session] Disconnecting room {}", room_id);
-        auto iter = _connections.find(room_id);
-        if (iter == _connections.end())
-        {
-            spdlog::debug("[session] Room {} not found.", room_id);
-            return;
-        }
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
+    spdlog::info("[session] Disconnecting room {}", room_id);
+    auto iter = _connections.find(room_id);
+    if (iter == _connections.end())
+    {
+        spdlog::debug("[session] Room {} not found.", room_id);
+        return;
+    }
 
-        iter->second.close();
-    });
+    iter->second.close();
 }
 
 void vNerve::bilibili::bilibili_connection_manager::close_all_connections()
@@ -135,6 +133,10 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
     }
 
     spdlog::debug("[session] Connected to room {}. Setting up connection protocol.", room_id);
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
+    auto existing_iter = _connections.find(room_id);
+    if (existing_iter != _connections.end() && existing_iter->second.closed())
+        existing_iter->second.close();
     _connections.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(room_id),
@@ -143,5 +145,6 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)
 {
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
     _connections.erase(room_id);
 }

@@ -4,6 +4,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/thread/thread_only.hpp>
+#include <boost/chrono.hpp>
 
 namespace vNerve::bilibili
 {
@@ -16,7 +17,7 @@ private:
     boost::thread _thread;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
 
-    int _update_interval_min;
+    boost::posix_time::time_duration _update_interval;
 
     CURL* _curl;
 
@@ -37,7 +38,9 @@ protected:
     virtual void on_updated(std::string_view) = 0;
 
 public:
-    http_interval_updater(int update_interval_min, int timeout_sec);
+    http_interval_updater(int update_interval_min, int timeout_sec)
+        : http_interval_updater(boost::posix_time::minutes(update_interval_min), timeout_sec) {}
+    http_interval_updater(boost::posix_time::time_duration update_interval, int timeout_sec);
     virtual ~http_interval_updater();
 };
 }

@@ -8,5 +8,6 @@ namespace vNerve::bilibili
 /// @param buf 以\0结尾的JSON字符串
 /// @param length 字符串长度
 /// @param roomid 房间号
-const borrowed_message* serialize_buffer(char* buf, const size_t& length, const unsigned int& roomid);
+const borrowed_message* serialize_buffer(char* buf, const size_t& length, const unsigned int& room_id);
+const borrowed_message* serialize_popularity(const long long popularity, const unsigned int& room_id);
 }  // namespace vNerve::bilibili

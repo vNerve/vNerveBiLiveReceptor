@@ -8,6 +8,7 @@
 
 #include <memory>
 #include <string>
+#include <mutex>
 
 namespace vNerve::bilibili
 {
@@ -25,6 +26,7 @@ class bilibili_connection_manager
 private:
     boost::asio::io_context _context;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> _guard;
+    std::recursive_mutex _mutex;
     boost::thread_group _pool;
     boost::asio::ip::tcp::resolver _resolver;
 
@@ -61,8 +63,9 @@ public:
 
     void set_chat_server_config(const std::string& addr, int port, std::string_view token)
     {
-        _server_addr = addr;
-        _server_port_str = std::to_string(port);
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        //_server_addr = addr;
+        //_server_port_str = std::to_string(port);
         _token = token;
     }
 

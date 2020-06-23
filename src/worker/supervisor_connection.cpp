@@ -21,7 +21,7 @@ supervisor_connection::supervisor_connection(const config::config_t config,
       _disconnected_handler(std::move(disconnected_handler))
 {
     _thread = boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
-    _timer.expires_from_now(boost::posix_time::seconds(1));
+    _timer.expires_from_now(boost::posix_time::seconds(5));
     _timer.async_wait(boost::bind(&supervisor_connection::on_retry_timer_tick, this, boost::asio::placeholders::error));
 }
 

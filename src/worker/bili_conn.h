@@ -23,6 +23,8 @@ private:
     int _room_id;
     int _heartbeat_interval_sec;
 
+    bool _closed = false;
+
     void reschedule_timer();
     void start_read();
 
@@ -69,5 +71,6 @@ public:
     }
 
     void close(bool failed = false);
+    bool closed() const { return _closed; }
 };
 }  // namespace vNerve::bilibili
