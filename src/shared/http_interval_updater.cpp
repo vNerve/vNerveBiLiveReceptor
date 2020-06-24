@@ -17,9 +17,6 @@ http_interval_updater::http_interval_updater(boost::posix_time::time_duration up
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
 
-    post(_context.get_executor(), boost::bind(&http_interval_updater::on_timer_tick, this,
-                                              boost::system::error_code()));
-
     _curl = curl_easy_init();
     if (!_curl)
     {
@@ -50,10 +47,16 @@ http_interval_updater::~http_interval_updater()
     }
 }
 
+void http_interval_updater::init()
+{
+    post(_context.get_executor(), boost::bind(&http_interval_updater::on_timer_tick, shared_from_this(),
+                                              boost::system::error_code()));
+}
+
 void http_interval_updater::reschedule_timer()
 {
     _timer->expires_from_now(_update_interval);
-    _timer->async_wait(boost::bind(&http_interval_updater::on_timer_tick, this,
+    _timer->async_wait(boost::bind(&http_interval_updater::on_timer_tick, shared_from_this(),
                                    boost::asio::placeholders::error));
 }
 

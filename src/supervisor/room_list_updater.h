@@ -9,7 +9,7 @@
 namespace vNerve::bilibili::info
 {
 using vtuber_info_update_callback = std::function<void(std::vector<int>&)>;
-class vtuber_info_updater : http_interval_updater
+class vtuber_info_updater final : public http_interval_updater
 {
 private:
     std::string _server_url;

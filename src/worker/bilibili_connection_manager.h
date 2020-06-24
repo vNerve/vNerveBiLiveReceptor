@@ -34,7 +34,7 @@ private:
     std::string _server_port_str;
     std::string _token;
 
-    std::unordered_map<int, bilibili_connection> _connections;
+    std::unordered_map<int, std::shared_ptr<bilibili_connection>> _connections;
     int _max_connections;
 
     room_event_handler _on_room_failed;

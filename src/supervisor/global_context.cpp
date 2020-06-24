@@ -13,8 +13,9 @@ supervisor_global_context::supervisor_global_context(const config::config_t conf
               std::bind(&supervisor_global_context::on_worker_data, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
               std::bind(&supervisor_global_context::on_diagnostic_data, this, std::placeholders::_1, std::placeholders::_2),
               std::bind(&supervisor_global_context::on_server_tick, this))),
-      _room_list_updater(config, std::bind(&supervisor_global_context::on_vtuber_list_update, this, std::placeholders::_1))
+      _room_list_updater(std::make_shared<info::vtuber_info_updater>(config, std::bind(&supervisor_global_context::on_vtuber_list_update, this, std::placeholders::_1)))
 {
+    _room_list_updater->init();
 }
 
 supervisor_global_context::~supervisor_global_context()

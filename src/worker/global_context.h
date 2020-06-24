@@ -5,6 +5,8 @@
 #include "borrowed_message.h"
 #include "config.h"
 
+#include <memory>
+
 namespace vNerve::bilibili
 {
 class worker_global_context
@@ -15,7 +17,7 @@ private:
     bilibili_connection_manager _conn_manager;
     worker_supervisor::supervisor_session _session;
 
-    bilibili_token_updater _token_updater;
+    std::shared_ptr<bilibili_token_updater> _token_updater;
 
     void on_room_failed(int room_id);
     void on_room_data(int room_id, const borrowed_message*);

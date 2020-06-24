@@ -241,7 +241,7 @@ void amqp_asio_connection::on_received(const boost::system::error_code& ec, size
 void amqp_context::on_ready()
 {
     _available = false;
-    _channel = new AMQP::Channel(_connection);
+    _channel = new AMQP::Channel(*_connection);
     _channel->declareExchange(_exchange, AMQP::ExchangeType::topic)
     .onError(
         [this](const char* msg) -> void {
@@ -259,26 +259,27 @@ void amqp_context::on_ready()
 
 amqp_context::amqp_context(const config::config_t options)
     : _connection(
-        (*options)["amqp-host"].as<std::string>(),
-        (*options)["amqp-port"].as<int>(),
-        AMQP::Login(
-            (*options)["amqp-user"].as<std::string>(),
-            (*options)["amqp-password"].as<std::string>()),
-        (*options)["amqp-vhost"].as<std::string>(),
-        (*options)["amqp-reconnect-interval-sec"].as<int>()),
+        std::make_shared<amqp_asio_connection>(
+            (*options)["amqp-host"].as<std::string>(),
+            (*options)["amqp-port"].as<int>(),
+            AMQP::Login(
+                (*options)["amqp-user"].as<std::string>(),
+                (*options)["amqp-password"].as<std::string>()),
+            (*options)["amqp-vhost"].as<std::string>(),
+            (*options)["amqp-reconnect-interval-sec"].as<int>())),
       _exchange((*options)["amqp-exchange"].as<std::string>()),
       _diag_exchange((*options)["amqp-diag-exchange"].as<std::string>()),
       _write_buf(new unsigned char[write_buf_default_size]),
       _write_buf_len(write_buf_default_size)
 {
-    _connection.post([this]() {
-        _connection.reconnect(std::bind(&amqp_context::on_ready, this));
+    _connection->post([this]() {
+        _connection->reconnect(std::bind(&amqp_context::on_ready, this));
     });
 }
 
 amqp_context::~amqp_context()
 {
-    _connection.disconnect();
+    _connection->disconnect();
 }
 
 void amqp_context::post_payload(const std::string_view routing_key, unsigned char const* payload, size_t len)
@@ -286,8 +287,8 @@ void amqp_context::post_payload(const std::string_view routing_key, unsigned cha
     auto buf = new unsigned char[len];
     auto routing_key_buf = std::string(routing_key);
     std::memcpy(buf, payload, len);
-    _connection.post([this, routing_key_buf, buf, len]() {
-        if (!_available || !_connection.connection() || !_channel)
+    _connection->post([this, routing_key_buf, buf, len]() {
+        if (!_available || !_connection->connection() || !_channel)
         {
             delete[] buf;
             return;
@@ -305,8 +306,8 @@ void amqp_context::post_diag_payload(unsigned char const* payload, size_t len)
 {
     auto buf = new unsigned char[len];
     std::memcpy(buf, payload, len);
-    _connection.post([this, buf, len]() {
-        if (!_available || !_connection.connection() || !_channel)
+    _connection->post([this, buf, len]() {
+        if (!_available || !_connection->connection() || !_channel)
         {
             delete[] buf;
             return;

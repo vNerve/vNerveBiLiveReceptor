@@ -22,15 +22,18 @@ using supervisor_tick_handler = std::function<void()>;
 using supervisor_new_worker_handler = std::function<void(identifier_t)>;
 using supervisor_worker_disconnect_handler = std::function<void(identifier_t)>;
 
-class worker_session
+class worker_session : public std::enable_shared_from_this<worker_session>
 {
 private:
     identifier_t _identifier;
     std::shared_ptr<boost::asio::ip::tcp::socket> _socket;
     std::shared_ptr<asio_socket_write_helper> _write_helper;
     std::shared_ptr<simple_worker_proto_handler> _read_handler;
+    supervisor_buffer_handler _buffer_handler;
     supervisor_worker_disconnect_handler _disconnect_handler;
     std::deque<std::tuple<unsigned char*, size_t, supervisor_buffer_deleter>> _write_queue;
+
+    int _read_buffer_size;
 
 public:
     worker_session(
@@ -40,6 +43,7 @@ public:
         supervisor_buffer_handler buffer_handler, supervisor_worker_disconnect_handler disconnect_handler);
     ~worker_session();
 
+    void init();
     void send(unsigned char*, size_t, supervisor_buffer_deleter);
     void disconnect(bool callback);
     std::shared_ptr<boost::asio::ip::tcp::socket> socket() { return _socket; }
@@ -78,7 +82,7 @@ private:
     boost::asio::io_context _context;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
         _guard;
-    robin_hood::unordered_map<identifier_t, worker_session> _sockets;
+    robin_hood::unordered_map<identifier_t, std::shared_ptr<worker_session>> _sockets;
     boost::asio::ip::tcp::acceptor _acceptor;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
     int _timer_interval_ms;

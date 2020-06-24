@@ -9,7 +9,7 @@ namespace vNerve::bilibili
 {
 using bilibili_token_updater_callback = std::function<void(const std::string&, int, const std::string&)>;
 
-class bilibili_token_updater : public http_interval_updater
+class bilibili_token_updater final : public http_interval_updater
 {
 private:
     std::string _url{};

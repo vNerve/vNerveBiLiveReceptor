@@ -15,23 +15,31 @@ worker_session::worker_session(
     supervisor_worker_disconnect_handler disconnect_handler)
     : _identifier(identifier),
       _socket(socket),
-      _write_helper(std::make_shared<asio_socket_write_helper>(
-          fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
-          socket, std::bind(&worker_session::disconnect, this, true))),
-      _read_handler(std::make_shared<simple_worker_proto_handler>(
-          fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
-          socket, read_buffer_size,
-          std::bind(buffer_handler, identifier, std::placeholders::_1, std::placeholders::_2),
-          std::bind(&worker_session::disconnect, this, true))),
-      _disconnect_handler(std::move(disconnect_handler))
+      _buffer_handler(std::move(buffer_handler)),
+      _disconnect_handler(std::move(disconnect_handler)),
+      _read_buffer_size(read_buffer_size)
 {
-    _read_handler->start();
+
 }
 
 worker_session::~worker_session()
 {
     if (_socket)
         disconnect(false);
+}
+
+void worker_session::init()
+{
+    _write_helper = std::make_shared<asio_socket_write_helper>(
+        fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
+        _socket,
+        std::bind(&worker_session::disconnect, shared_from_this(), true));
+    _read_handler = std::make_shared<simple_worker_proto_handler>(
+        fmt::format(LOG_PREFIX "[{:016x}]", _identifier),
+        _socket, _read_buffer_size,
+        std::bind(_buffer_handler, _identifier, std::placeholders::_1, std::placeholders::_2),
+        std::bind(&worker_session::disconnect, shared_from_this(), true));
+    _read_handler->start();
 }
 
 void worker_session::send(unsigned char* buf, size_t len, supervisor_buffer_deleter deleter)
@@ -157,12 +165,12 @@ void worker_connection_manager::on_accept(
             remote_ep.address().to_string(),
             remote_ep.port(),
             identifier);
-        _sockets.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(identifier),
-            std::forward_as_tuple(
-                identifier, socket, _read_buffer_size, _buffer_handler, _disconnect_handler
-            ));
+        auto [iter, inserted] = _sockets.emplace(
+            identifier,
+            std::make_shared<worker_session>(
+                identifier, socket, _read_buffer_size, _buffer_handler, _disconnect_handler));
+        iter->second->init();
+
         _new_worker_handler(identifier);
     }
 
@@ -201,7 +209,7 @@ void worker_connection_manager::
     if (socket_iter == _sockets.end())
         return;
 
-    socket_iter->second.send(msg, len, deleter);
+    socket_iter->second->send(msg, len, deleter);
 }
 
 void worker_connection_manager::disconnect_worker(identifier_t identifier, bool callback)
@@ -210,8 +218,8 @@ void worker_connection_manager::disconnect_worker(identifier_t identifier, bool 
     if (socket_iter == _sockets.end())
         return;
 
-    worker_session& session = socket_iter->second;
-    session.disconnect(callback);
+    std::shared_ptr<worker_session> session = socket_iter->second;
+    session->disconnect(callback);
     _sockets.erase(socket_iter);
 }
 }

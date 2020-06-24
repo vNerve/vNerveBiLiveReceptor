@@ -7,7 +7,7 @@
 namespace vNerve::bilibili
 {
 class bilibili_connection_manager;
-class bilibili_connection
+class bilibili_connection : public std::enable_shared_from_this<bilibili_connection>
 {
 private:
     std::unique_ptr<unsigned char[]> _read_buffer_ptr;
@@ -21,6 +21,7 @@ private:
     std::unique_ptr<boost::asio::deadline_timer> _heartbeat_timer;
 
     int _room_id;
+    std::string_view _token;
     int _heartbeat_interval_sec;
 
     bool _closed = false;
@@ -70,6 +71,7 @@ public:
         return *this;
     }
 
+    void init();
     void close(bool failed = false);
     bool closed() const { return _closed; }
 };

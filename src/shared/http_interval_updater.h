@@ -8,7 +8,7 @@
 
 namespace vNerve::bilibili
 {
-class http_interval_updater
+class http_interval_updater : public std::enable_shared_from_this<http_interval_updater>
 {
 private:
     boost::asio::io_context _context;
@@ -42,5 +42,7 @@ public:
         : http_interval_updater(boost::posix_time::minutes(update_interval_min), timeout_sec) {}
     http_interval_updater(boost::posix_time::time_duration update_interval, int timeout_sec);
     virtual ~http_interval_updater();
+
+    void init();
 };
 }

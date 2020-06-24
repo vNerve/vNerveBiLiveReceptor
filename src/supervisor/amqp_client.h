@@ -1,4 +1,5 @@
 #pragma once
+#include "config.h"
 
 #include <boost/asio.hpp>
 #include <boost/noncopyable.hpp>
@@ -6,13 +7,13 @@
 #include <boost/program_options.hpp>
 
 #include <amqpcpp.h>
-#include "config.h"
+#include <memory>
 
 namespace vNerve::bilibili::mq
 {
 const size_t write_buf_default_size = 32 * 1024; // 32 K
 
-class amqp_asio_connection : public AMQP::ConnectionHandler, boost::noncopyable
+class amqp_asio_connection : public AMQP::ConnectionHandler, boost::noncopyable, std::enable_shared_from_this<amqp_asio_connection>
 {
 private:
     static const int READ_BUFFER_LEN = 4096 * 2;
@@ -71,7 +72,7 @@ public:
 class amqp_context
 {
 private:
-    amqp_asio_connection _connection;
+    std::shared_ptr<amqp_asio_connection> _connection;
     AMQP::Channel* _channel = nullptr;
 
     std::string _exchange;

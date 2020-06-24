@@ -16,27 +16,13 @@ vNerve::bilibili::bilibili_connection::bilibili_connection(
       _heartbeat_timer(std::make_unique<boost::asio::deadline_timer>(
           _session->get_io_context())),
       _room_id(room_id),
+      _token(token),
       _heartbeat_interval_sec(
           _session->get_options()["heartbeat-timeout"].as<int>())
 {
     spdlog::info("[conn] [room={}] Established connection to server.", room_id);
     _read_buffer_ptr =
         std::unique_ptr<unsigned char[]>(new unsigned char[_read_buffer_size + 1]); // extra space for \0
-    start_read();
-
-    auto str = new std::string(generate_join_room_packet(
-        room_id, session->get_options()["protocol-ver"].as<int>(), token));
-    auto buffer = boost::asio::buffer(*str);
-    SPDLOG_TRACE(
-        "[conn] [room={}] Sending handshake packet with payload(len={}): {:Xs}",
-        room_id, str->length(),
-        spdlog::to_hex(str->c_str(), str->c_str() + str->length()));
-    socket->async_send(
-        buffer, boost::bind(&bilibili_connection::on_join_room_sent, this,
-                            boost::asio::placeholders::error,
-                            boost::asio::placeholders::bytes_transferred, str));
-    // Don't need a sending queue
-    // Because the sending frequency is low.
 }
 
 vNerve::bilibili::bilibili_connection::~bilibili_connection()
@@ -51,7 +37,7 @@ void vNerve::bilibili::bilibili_connection::reschedule_timer()
     _heartbeat_timer->expires_from_now(
         boost::posix_time::seconds(_heartbeat_interval_sec));
     _heartbeat_timer->async_wait(
-        boost::bind(&bilibili_connection::on_heartbeat_tick, this,
+        boost::bind(&bilibili_connection::on_heartbeat_tick, shared_from_this(),
                     boost::asio::placeholders::error));
 }
 
@@ -64,13 +50,36 @@ void vNerve::bilibili::bilibili_connection::start_read()
     _socket->async_receive(
         boost::asio::buffer(_read_buffer_ptr.get() + _read_buffer_offset,
                             _read_buffer_size - _read_buffer_offset),
-        boost::bind(&bilibili_connection::on_receive, this,
+        boost::bind(&bilibili_connection::on_receive, shared_from_this(),
                     boost::asio::placeholders::error,
                     boost::asio::placeholders::bytes_transferred));
 }
 
+void vNerve::bilibili::bilibili_connection::init()
+{
+    start_read();
+
+    auto str = new std::string(generate_join_room_packet(
+        _room_id, _session->get_options()["protocol-ver"].as<int>(), _token));
+    auto buffer = boost::asio::buffer(*str);
+    SPDLOG_TRACE(
+        "[conn] [room={}] Sending handshake packet with payload(len={}): {:Xs}",
+        room_id, str->length(),
+        spdlog::to_hex(str->c_str(), str->c_str() + str->length()));
+    _socket->async_send(
+        buffer, boost::bind(&bilibili_connection::on_join_room_sent, shared_from_this(),
+                            boost::asio::placeholders::error,
+                            boost::asio::placeholders::bytes_transferred, str));
+    // Don't need a sending queue
+    // Because the sending frequency is low.
+}
+
 void vNerve::bilibili::bilibili_connection::close(const bool failed)
 {
+    if (_closed)
+        return;
+    _closed = true;
+
     boost::system::error_code ec;
     if (!_socket)
         return;
@@ -152,7 +161,7 @@ void vNerve::bilibili::bilibili_connection::on_heartbeat_tick(
         "[conn] [room={}] Sending heartbeat packet with payload(len={}): {:Xs}",
         _room_id, buf.size(), spdlog::to_hex(buf_ptr, buf_ptr + buf.size()));
     _socket->async_send(
-        buf, boost::bind(&bilibili_connection::on_heartbeat_sent, this,
+        buf, boost::bind(&bilibili_connection::on_heartbeat_sent, shared_from_this(),
                          boost::asio::placeholders::error,
                          boost::asio::placeholders::bytes_transferred));
 

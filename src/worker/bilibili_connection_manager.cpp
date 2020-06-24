@@ -71,7 +71,7 @@ void vNerve::bilibili::bilibili_connection_manager::close_connection(int room_id
         return;
     }
 
-    iter->second.close();
+    iter->second->close();
 }
 
 void vNerve::bilibili::bilibili_connection_manager::close_all_connections()
@@ -79,7 +79,7 @@ void vNerve::bilibili::bilibili_connection_manager::close_all_connections()
     post(_context.get_executor(), [this]() -> void {
         spdlog::info("[session] Disconnecting all rooms.");
         while (!_connections.empty())
-            _connections.begin()->second.close(false);
+            _connections.begin()->second->close(false);
     });
 }
 
@@ -135,12 +135,11 @@ void vNerve::bilibili::bilibili_connection_manager::on_connected(
     spdlog::debug("[session] Connected to room {}. Setting up connection protocol.", room_id);
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     auto existing_iter = _connections.find(room_id);
-    if (existing_iter != _connections.end() && existing_iter->second.closed())
-        existing_iter->second.close();
-    _connections.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(room_id),
-        std::forward_as_tuple(socket, this, room_id, _token)); // Construct connection obj.
+    if (existing_iter != _connections.end() && existing_iter->second->closed())
+        existing_iter->second->close();
+    auto [iter, inserted] = _connections.emplace(room_id, std::make_shared<bilibili_connection>(socket, this, room_id, _token));
+    if (inserted)
+        iter->second->init();
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)
