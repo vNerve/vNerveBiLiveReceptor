@@ -138,7 +138,7 @@ Iterator scheduler_session::delete_task(Iterator iter, const bool desc_rank)
         if (desc_rank)
         {
             if (!worker_iter->second.punished)
-                worker_iter->second.allow_new_task_after = std::chrono::system_clock::now() + std::chrono::minutes(10);
+                worker_iter->second.allow_new_task_after = std::chrono::system_clock::now() + _worker_penalty;
             else
                 worker_iter->second.allow_new_task_after += _worker_penalty; // acc
             //SPDLOG_TRACE(LOG_PREFIX "Updating rank of worker: {}", worker_iter->second.allow_new_task_after.count());
