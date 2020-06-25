@@ -107,39 +107,17 @@ void vNerve::bilibili::bilibili_connection_manager::on_resolved(
     spdlog::debug(
         "[session] Connecting room {}: server DN resolved, connecting to endpoints.",
         room_id);
-    auto socket = std::make_shared<boost::asio::ip::tcp::socket>(_context);
-    async_connect(
-        *socket, endpoint_iterator,
-        boost::bind(&bilibili_connection_manager::on_connected, this,
-                    boost::asio::placeholders::error, socket, room_id));
-}
 
-void vNerve::bilibili::bilibili_connection_manager::on_connected(
-    const boost::system::error_code& err,
-    std::shared_ptr<boost::asio::ip::tcp::socket> socket, int room_id)
-{
-    if (err)
-    {
-        if (err.value() == boost::asio::error::operation_aborted)
-        {
-            spdlog::debug("[session] Cancelling connecting to room {}.",
-                          room_id);
-            return;
-        }
-        spdlog::warn("[session] Failed connecting to room {}! err: {}:{}",
-                     room_id, err.value(), err.message());
-        on_room_failed(room_id);
-        return;
-    }
-
-    spdlog::debug("[session] Connected to room {}. Setting up connection protocol.", room_id);
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     auto existing_iter = _connections.find(room_id);
     if (existing_iter != _connections.end() && existing_iter->second->closed())
+    {
         existing_iter->second->close();
-    auto [iter, inserted] = _connections.emplace(room_id, std::make_shared<bilibili_connection>(socket, this, room_id, _token));
+        _connections.erase(existing_iter);
+    }
+    auto [iter, inserted] = _connections.emplace(room_id, std::make_shared<bilibili_connection>(this, room_id, _token));
     if (inserted)
-        iter->second->init();
+        iter->second->init(endpoint_iterator);
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)

@@ -45,9 +45,6 @@ private:
     void on_resolved(const boost::system::error_code& err,
                      boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
                      int room_id);
-    void on_connected(
-        const boost::system::error_code& err,
-        std::shared_ptr<boost::asio::ip::tcp::socket>, int);
 
     void on_room_failed(int room_id) { _on_room_failed(room_id); }
     void on_room_data(int room_id, const borrowed_message* msg) { _on_room_data(room_id, msg); }

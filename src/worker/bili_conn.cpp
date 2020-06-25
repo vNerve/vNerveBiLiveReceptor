@@ -8,11 +8,10 @@
 #include <spdlog/fmt/bin_to_hex.h>
 
 vNerve::bilibili::bilibili_connection::bilibili_connection(
-    const std::shared_ptr<boost::asio::ip::tcp::socket> socket,
     bilibili_connection_manager* session, int room_id, std::string_view token)
     : _read_buffer_size(session->get_options()["read-buffer"].as<size_t>()),
       _session(session),
-      _socket(socket),
+      _socket(std::make_shared<boost::asio::ip::tcp::socket>(session->_context.get_executor())),
       _heartbeat_timer(std::make_unique<boost::asio::deadline_timer>(
           _session->get_io_context())),
       _room_id(room_id),
@@ -55,8 +54,23 @@ void vNerve::bilibili::bilibili_connection::start_read()
                     boost::asio::placeholders::bytes_transferred));
 }
 
-void vNerve::bilibili::bilibili_connection::init()
+void vNerve::bilibili::bilibili_connection::on_connected(const boost::system::error_code& err)
 {
+    if (err)
+    {
+        if (err.value() == boost::asio::error::operation_aborted)
+        {
+            spdlog::debug("[session] Cancelling connecting to room {}.",
+                          _room_id);
+            return;
+        }
+        spdlog::warn("[session] Failed connecting to room {}! err: {}:{}",
+                     _room_id, err.value(), err.message());
+        close(true);
+        return;
+    }
+
+    spdlog::debug("[conn] Connected to room {}. Setting up connection protocol.", _room_id);
     start_read();
 
     auto str = new std::string(generate_join_room_packet(
@@ -72,6 +86,12 @@ void vNerve::bilibili::bilibili_connection::init()
                             boost::asio::placeholders::bytes_transferred, str));
     // Don't need a sending queue
     // Because the sending frequency is low.
+}
+
+void vNerve::bilibili::bilibili_connection::init(const boost::asio::ip::tcp::resolver::iterator& endpoints)
+{
+    async_connect(*_socket, endpoints,
+        boost::bind(&bilibili_connection::on_connected, shared_from_this(), boost::asio::placeholders::error));
 }
 
 void vNerve::bilibili::bilibili_connection::close(const bool failed)
