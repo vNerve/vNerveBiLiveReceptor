@@ -22,7 +22,9 @@ set(WORKER_SOURCE_FILES
     "src/worker/config.cpp"
     "src/worker/bilibili_token_updater.cpp"
     "src/worker/bilibili_connection_manager.cpp"
-    "src/worker/bili_conn.cpp"
+    "src/worker/bilibili_live_config.cpp"
+    "src/worker/bili_conn_plain_tcp.cpp"
+    "src/worker/bili_conn_ws.cpp"
     "src/worker/bili_packet.cpp"
     "src/worker/bili_json.cpp"
     "src/worker/supervisor_connection.cpp"
@@ -80,7 +82,7 @@ if (UNIX)
 endif()
 
 conan_cmake_run(REQUIRES
-                    "boost/1.72.0"
+                    "boost/1.73.0"
                     "zlib/1.2.11"
                     "fmt/6.2.0"
                     "spdlog/1.6.1"
@@ -88,6 +90,8 @@ conan_cmake_run(REQUIRES
                     "protobuf/3.11.4"
                     "libcurl/7.70.0"
                     "amqp-cpp/4.1.6"
+                    "openssl/1.1.1g"
+                    "uriparser/0.9.4"
                 BASIC_SETUP CMAKE_TARGETS
                 OPTIONS ${CONAN_OPTIONS}
                 ENV "CONAN_CMAKE_GENERATOR=Ninja"
@@ -97,9 +101,11 @@ if (WIN32)
     target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601" "-DNOMINMAX")
     target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-D_WIN32_WINNT=0x0601" "-DNOMINMAX")
     target_compile_options(${WORKER_EXECUTABLE_NAME} PUBLIC "/utf-8")
+
+    set_source_files_properties("src/worker/bili_conn_ws.cpp" PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG")
+    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
     target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG")
 endif()
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
@@ -109,6 +115,8 @@ target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::rapidjson
                         CONAN_PKG::protobuf
                         CONAN_PKG::libcurl
+                        CONAN_PKG::openssl
+                        CONAN_PKG::uriparser
                         )
 target_link_libraries(${SUPERVISOR_EXECUTABLE_NAME}
                         CONAN_PKG::boost
