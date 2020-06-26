@@ -14,6 +14,7 @@ struct bilibili_live_config
 
 void async_fetch_bilibili_live_config(
     boost::asio::io_context& context,
+    boost::asio::ip::tcp::resolver& resolver,
     config::config_t config,
     int room_id,
     std::function<void(bilibili_live_config const&)> on_success,

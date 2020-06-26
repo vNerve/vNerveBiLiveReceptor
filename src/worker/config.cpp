@@ -4,13 +4,14 @@ namespace vNerve::bilibili::config
 {
 // Default options.
 const int DEFAULT_HEARTBEAT_TIMEOUT_SEC = 25;
-const std::string DEFAULT_CHAT_SERVER = "broadcastlv.chat.bilibili.com";
+const std::string DEFAULT_CHAT_SERVER = "tx-sh-live-comet-03.chat.bilibili.com";
 const std::string DEFAULT_CHAT_SERVER_CONFIG_URL = "https://api.live.bilibili.com/room/v1/Danmu/getConf";
 const std::string DEFAULT_CHAT_SERVER_CONFIG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36";
 const std::string DEFAULT_CHAT_SERVER_CONFIG_REFERER = "https://live.bilibili.com/";
-const int DEFAULT_CHAT_SERVER_CONFIG_INTERVAL_SEC = 5;
+const int DEFAULT_CHAT_SERVER_CONFIG_INTERVAL_SEC = 10;
 const int DEFAULT_CHAT_SERVER_CONFIG_TIMEOUT_SEC = 15;
-const int DEFAULT_CHAT_SERVER_PORT = 2243;
+const int DEFAULT_CHAT_SERVER_PORT = 443;
+const std::string DEFAULT_CHAT_SERVER_ENDPOINT = "/sub";
 const int DEFAULT_CHAT_SERVER_PROTOCOL_VER = 2;
 
 const int DEFAULT_READ_BUFFER = 128 * 1024;
@@ -43,6 +44,7 @@ boost::program_options::options_description create_description()
         ("heartbeat-timeout,t", value<int>()->default_value(DEFAULT_HEARTBEAT_TIMEOUT_SEC), "Timeout(secs) between heartbeat packets to Bilibili server.")
         ("chat-server,s", value<std::string>()->default_value(DEFAULT_CHAT_SERVER), "Bilibili live chat server in TCP mode.")
         ("chat-server-port,p", value<int>()->default_value(DEFAULT_CHAT_SERVER_PORT), "Bilibili live chat server port.")
+        ("chat-server-endpoint", value<std::string>()->default_value(DEFAULT_CHAT_SERVER_ENDPOINT), "Bilibili live chat server WebSocket endpoint.")
         ("protocol-ver,V", value<int>()->default_value(DEFAULT_CHAT_SERVER_PROTOCOL_VER),"Bilibili live chat server protocol version.")
         ("chat-config-url", value<std::string>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_URL),"Bilibili live chat config URL.")
         ("chat-config-user-agent", value<std::string>()->default_value(DEFAULT_CHAT_SERVER_CONFIG_USER_AGENT),"User-Agent used in requesting bilibili live chat config URL.")

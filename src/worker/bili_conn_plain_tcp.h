@@ -7,7 +7,7 @@
 namespace vNerve::bilibili
 {
 class bilibili_connection_manager;
-class bilibili_connection : public std::enable_shared_from_this<bilibili_connection>
+class bilibili_connection_plain_tcp : public std::enable_shared_from_this<bilibili_connection_plain_tcp>
 {
 private:
     std::unique_ptr<unsigned char[]> _read_buffer_ptr;
@@ -37,11 +37,11 @@ private:
     void on_receive(const boost::system::error_code&, size_t);
 
 public:
-    bilibili_connection(bilibili_connection_manager* session, int room_id, std::string_view token);
-    ~bilibili_connection();
+    bilibili_connection_plain_tcp(bilibili_connection_manager* session, int room_id, std::string_view token);
+    ~bilibili_connection_plain_tcp();
 
-    bilibili_connection(const bilibili_connection& other) = delete;
-    bilibili_connection& operator=(const bilibili_connection& other) = delete;
+    bilibili_connection_plain_tcp(const bilibili_connection_plain_tcp& other) = delete;
+    bilibili_connection_plain_tcp& operator=(const bilibili_connection_plain_tcp& other) = delete;
 
     void init(const boost::asio::ip::tcp::resolver::iterator& endpoints);
     void close(bool failed = false);

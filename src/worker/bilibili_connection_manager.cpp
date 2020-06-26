@@ -13,7 +13,6 @@
 vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const config::config_t options, room_event_handler on_room_failed, room_data_handler on_room_data)
     : _context((*options)["threads"].as<int>()),
       _guard(_context.get_executor()),
-      _resolver(_context),
       _max_connections((*options)["max-rooms"].as<int>()),
       _on_room_failed(std::move(on_room_failed)),
       _on_room_data(std::move(on_room_data)),
@@ -22,8 +21,6 @@ vNerve::bilibili::bilibili_connection_manager::bilibili_connection_manager(const
       _shared_heartbeat_buffer(
           boost::asio::buffer(_shared_heartbeat_buffer_str))
 {
-    _server_addr = (*_options)["chat-server"].as<std::string>();
-    _server_port_str = std::to_string((*_options)["chat-server-port"].as<int>());
     int threads = (*_options)["threads"].as<int>();
     spdlog::info("[session] Creating session with thread pool size={}",
                  threads);
@@ -48,16 +45,17 @@ vNerve::bilibili::bilibili_connection_manager::~bilibili_connection_manager()
 
 void vNerve::bilibili::bilibili_connection_manager::open_connection(const int room_id)
 {
-    std::lock_guard<std::recursive_mutex> lock(_mutex);
     spdlog::info("[session] Connecting room {}", room_id);
-    spdlog::debug(
-        "[session] Connecting room {} with server {}:{}, resolving DN.",
-        room_id, _server_addr, _server_port_str);
-    _resolver.async_resolve(
-        _server_addr, _server_port_str,
-        boost::bind(&bilibili_connection_manager::on_resolved, this,
-                    boost::asio::placeholders::error,
-                    boost::asio::placeholders::iterator, room_id));
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
+    auto existing_iter = _connections.find(room_id);
+    if (existing_iter != _connections.end() && existing_iter->second->closed())
+    {
+        existing_iter->second->close();
+        _connections.erase(existing_iter);
+    }
+    auto [iter, inserted] = _connections.emplace(room_id, std::make_shared<enabled_bilibili_bilibili_connection>(this, room_id));
+    if (inserted)
+        iter->second->init();
 }
 
 void vNerve::bilibili::bilibili_connection_manager::close_connection(int room_id)
@@ -81,43 +79,6 @@ void vNerve::bilibili::bilibili_connection_manager::close_all_connections()
         while (!_connections.empty())
             _connections.begin()->second->close(false);
     });
-}
-
-void vNerve::bilibili::bilibili_connection_manager::on_resolved(
-    const boost::system::error_code& err,
-    const boost::asio::ip::tcp::resolver::iterator endpoint_iterator,
-    const int room_id)
-{
-    if (err)
-    {
-        if (err.value() == boost::asio::error::operation_aborted)
-        {
-            spdlog::debug(
-                "[session] Cancelling connecting(resolving) to room {}.",
-                room_id);
-            return;
-        }
-        spdlog::warn(
-            "[session] Failed resolving DN connecting to room {}! err: {}:{}",
-            room_id, err.value(), err.message());
-        on_room_failed(room_id);
-        return;
-    }
-
-    spdlog::debug(
-        "[session] Connecting room {}: server DN resolved, connecting to endpoints.",
-        room_id);
-
-    std::lock_guard<std::recursive_mutex> lock(_mutex);
-    auto existing_iter = _connections.find(room_id);
-    if (existing_iter != _connections.end() && existing_iter->second->closed())
-    {
-        existing_iter->second->close();
-        _connections.erase(existing_iter);
-    }
-    auto [iter, inserted] = _connections.emplace(room_id, std::make_shared<bilibili_connection>(this, room_id, _token));
-    if (inserted)
-        iter->second->init(endpoint_iterator);
 }
 
 void vNerve::bilibili::bilibili_connection_manager::on_room_closed(int room_id)

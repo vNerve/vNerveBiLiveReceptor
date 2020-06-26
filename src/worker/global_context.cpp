@@ -13,10 +13,10 @@ worker_global_context::worker_global_context(config::config_t config)
       _session(config,
                std::bind(&worker_global_context::on_request_connect_room, this, std::placeholders::_1),
                std::bind(&worker_global_context::on_request_disconnect_room, this, std::placeholders::_1),
-               std::bind(&worker_global_context::on_supervisor_disconnected, this)),
-      _token_updater(std::make_shared<bilibili_token_updater>(config, std::bind(&worker_global_context::on_update_live_chat_config, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)))
+               std::bind(&worker_global_context::on_supervisor_disconnected, this))
+      //_token_updater(std::make_shared<bilibili_token_updater>(config, std::bind(&worker_global_context::on_update_live_chat_config, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)))
 {
-    _token_updater->init();
+    //_token_updater->init();
 }
 
 worker_global_context::~worker_global_context()
@@ -54,10 +54,5 @@ void worker_global_context::on_request_disconnect_room(int room_id)
 void worker_global_context::on_supervisor_disconnected()
 {
     _conn_manager.close_all_connections();
-}
-
-void worker_global_context::on_update_live_chat_config(const std::string& host, int port, const std::string& token)
-{
-    _conn_manager.set_chat_server_config(host, port, token);
 }
 }

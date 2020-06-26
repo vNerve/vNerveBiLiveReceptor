@@ -151,12 +151,12 @@ void parse_bilibili_config(std::string const& buf, std::function<void(bilibili_l
 
 void async_fetch_bilibili_live_config(
     io_context& context,
+    boost::asio::ip::tcp::resolver& resolver,
     config::config_t config,
     int room_id,
     std::function<void(bilibili_live_config const&)> on_success,
     std::function<void()> on_failed)
 {
-    ip::tcp::resolver resolver(context);
     auto query_string = fmt::format("?room_id={}&platform=pc&player=web", room_id);
 
     UriUriA uri;
@@ -174,7 +174,7 @@ void async_fetch_bilibili_live_config(
 
     resolver.async_resolve(host, port, [=, &context](const error_code& ec, const ip::tcp::resolver::results_type& resolved) -> void {
         if (ec)
-            return on_failed(), spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config. err: {}:{}", room_id, ec.value(), ec.message());
+            return on_failed(), spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config. Can't resolve. err: {}:{}", room_id, ec.value(), ec.message());
         std::shared_ptr<ssl_stream<tcp_stream>> stream =
             std::make_shared<ssl_stream<tcp_stream>>(context, *ssl_context);
         stream->next_layer().expires_after(std::chrono::seconds((*config)["chat-config-timeout-sec"].as<int>()));
@@ -187,7 +187,7 @@ void async_fetch_bilibili_live_config(
 
         async_connect(stream->next_layer().socket(), resolved, [=](const error_code& ec, const ip::tcp::resolver::endpoint_type&) -> void {
             if (ec)
-                return on_failed(), spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config. err: {}:{}", room_id, ec.value(), ec.message());
+                return on_failed(), spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config can't connect. err: {}:{}", room_id, ec.value(), ec.message());
             stream->async_handshake(ssl::stream_base::client, [=](const error_code& ec) -> void
             {
                 if (ec)
