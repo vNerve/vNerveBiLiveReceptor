@@ -18,6 +18,13 @@ int main(int argc, char** argv)
     spdlog::cfg::load_env_levels();
     global_config = vNerve::bilibili::config::parse_options(argc, argv);
     auto global_ctxt = new vNerve::bilibili::worker_global_context(global_config);
-    global_ctxt->join();
+    //global_ctxt->join();
+    while (true)
+    {
+        // TODO dynamically change options?
+        std::string command;
+        std::cin >> command;
+        spdlog::set_level(spdlog::level::from_str(command));
+    }
     delete global_ctxt;
 }
