@@ -104,10 +104,8 @@ if (WIN32)
 
     set_source_files_properties("src/worker/bili_conn_ws.cpp" PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
-    target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG")
-endif()
+target_compile_definitions(${WORKER_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE")
+target_compile_definitions(${SUPERVISOR_EXECUTABLE_NAME} PUBLIC "-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG")
 target_link_libraries(${WORKER_EXECUTABLE_NAME}
                         CONAN_PKG::boost
                         CONAN_PKG::zlib

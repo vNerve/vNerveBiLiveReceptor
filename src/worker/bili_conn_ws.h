@@ -23,9 +23,6 @@ private:
     std::unique_ptr<boost::asio::deadline_timer> _heartbeat_timer;
 
     int _room_id;
-    //std::string _host;
-    //std::string _url_endpoint;
-    //int _port;
     std::string _token;
     int _heartbeat_interval_sec;
 
@@ -39,7 +36,6 @@ private:
     void on_connected(const boost::system::error_code& err);
     void on_ssl_handshake(const boost::system::error_code& err);
     void on_handshake(const boost::system::error_code& err);
-    void on_closed(const boost::system::error_code& err);
     void on_join_room_sent(const boost::system::error_code&, size_t,
                            std::string*);
     void on_heartbeat_sent(const boost::system::error_code&, size_t);

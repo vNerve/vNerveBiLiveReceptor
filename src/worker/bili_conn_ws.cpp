@@ -30,9 +30,9 @@ static const bool ssl_context_configured = configure_ssl_context();
 
 bilibili_connection_websocket::bilibili_connection_websocket(
     bilibili_connection_manager* session, int room_id)
-    : _read_buffer(session->get_options()["read-buffer"].as<size_t>()),
+    : _resolver(session->get_io_context()),
+      _read_buffer(session->get_options()["read-buffer"].as<size_t>()),
       _session(session),
-      _resolver(session->get_io_context()),
       _ws_stream(make_strand(session->get_io_context()), *ssl_context),
       _heartbeat_timer(std::make_unique<boost::asio::deadline_timer>(_session->get_io_context())),
       _room_id(room_id),
@@ -41,7 +41,7 @@ bilibili_connection_websocket::bilibili_connection_websocket(
 }
 
 bilibili_connection_websocket::~bilibili_connection_websocket()
-{
+{\
     close(false);
 }
 
@@ -316,22 +316,15 @@ void bilibili_connection_websocket::close(const bool failed)
     boost::system::error_code ec;
     _heartbeat_timer->cancel(ec);
 
-    _ws_stream.async_close(boost::beast::websocket::close_code::normal,
-                           boost::beast::bind_front_handler(
-                               &bilibili_connection_websocket::on_closed,
-                               shared_from_this()));
+    _ws_stream.async_close(boost::beast::websocket::close_code::normal, [room_id = _room_id](const boost::system::error_code& err) -> void
+    {
+        if (err.value() != boost::asio::error::operation_aborted || err == boost::beast::websocket::error::closed)
+            spdlog::warn("[conn] [room={}] Error when closing: {}:{}", room_id, err.value(), err.message());
+        // whatever, closed.
+    });
 
     if (failed)
         _session->on_room_failed(_room_id);
     _session->on_room_closed(_room_id);
-}
-
-void bilibili_connection_websocket::on_closed(const boost::system::error_code& err)
-{
-    if (err.value() != boost::asio::error::operation_aborted)
-    {
-        spdlog::warn("[conn] [room={}] Error when closing: {}:{}", _room_id, err.value(), err.message());
-    }
-    // whatever, closed
 }
 }
