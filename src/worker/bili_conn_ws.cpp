@@ -280,7 +280,7 @@ void bilibili_connection_websocket::on_receive(
 {
     if (err)
     {
-        if (err.value() == boost::asio::error::operation_aborted || err == boost::beast::websocket::error::closed)
+        if (err.value() == boost::asio::error::operation_aborted || err == boost::beast::websocket::error::closed || err == boost::asio::error::eof)
         {
             SPDLOG_DEBUG("[conn] Cancelling async reading.");
             return;  // closing socket.
@@ -294,6 +294,7 @@ void bilibili_connection_websocket::on_receive(
                  transferred);
     try
     {
+        _read_buffer.reserve(_read_buffer.size() + 1); // Add space for '\0'
         handle_buffer(reinterpret_cast<unsigned char*>(_read_buffer.data().data()), transferred, _read_buffer.size(), 0,  // No need to concat packets ourselves
                       _room_id, std::bind(&bilibili_connection_manager::on_room_data, _session, _room_id, std::placeholders::_1));
     }
@@ -327,7 +328,7 @@ void bilibili_connection_websocket::close(const bool failed)
 
 void bilibili_connection_websocket::on_closed(const boost::system::error_code& err)
 {
-    if (err)
+    if (err.value() != boost::asio::error::operation_aborted)
     {
         spdlog::warn("[conn] [room={}] Error when closing: {}:{}", _room_id, err.value(), err.message());
     }
