@@ -295,7 +295,7 @@ void bilibili_connection_websocket::on_receive(
     try
     {
         _read_buffer.reserve(_read_buffer.size() + 1); // Add space for '\0'
-        handle_buffer(reinterpret_cast<unsigned char*>(_read_buffer.data().data()), transferred, _read_buffer.size(), 0,  // No need to concat packets ourselves
+        handle_buffer(reinterpret_cast<unsigned char*>(_read_buffer.data().data()), transferred, _read_buffer.size(), 0, 0,  // No need to concat packets ourselves
                       _room_id, std::bind(&bilibili_connection_manager::on_room_data, _session, _room_id, std::placeholders::_1));
     }
     catch (malformed_packet&)

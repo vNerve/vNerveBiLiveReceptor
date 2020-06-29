@@ -8,7 +8,6 @@
 
 namespace vNerve::bilibili::worker_supervisor
 {
-
 simple_worker_proto_handler::simple_worker_proto_handler(std::string log_prefix, std::shared_ptr<boost::asio::ip::tcp::socket> socket, size_t buffer_size, buffer_handler buffer_handler, socket_close_handler close_handler)
     : _log_prefix(log_prefix),
       _read_buffer_ptr(new unsigned char[buffer_size]),
@@ -18,7 +17,6 @@ simple_worker_proto_handler::simple_worker_proto_handler(std::string log_prefix,
       _buffer_handler(std::move(buffer_handler))
 
 {
-
 }
 
 simple_worker_proto_handler::~simple_worker_proto_handler()
@@ -73,10 +71,10 @@ void simple_worker_proto_handler::on_receive(const boost::system::error_code& ec
     SPDLOG_DEBUG(LOG_PREFIX "{} Received data block(len={})", _log_prefix, transferred);
     auto [new_offset, new_skipping_bytes] =
         handle_simple_message(_read_buffer_ptr.get(), transferred, _read_buffer_size,
-                              _skipping_bytes, _buffer_handler);
+                              _read_buffer_offset, _skipping_bytes, _buffer_handler);
     _read_buffer_offset = new_offset;
     _skipping_bytes = new_skipping_bytes;
 
     start_async_read();
 }
-}
+}  // namespace vNerve::bilibili::worker_supervisor

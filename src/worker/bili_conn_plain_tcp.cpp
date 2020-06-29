@@ -208,7 +208,7 @@ void vNerve::bilibili::bilibili_connection_plain_tcp::on_receive(
     try
     {
         auto [new_offset, new_skipping_bytes] =
-            handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size, _skipping_bytes,
+            handle_buffer(_read_buffer_ptr.get(), transferred, _read_buffer_size, _read_buffer_offset, _skipping_bytes,
                           _room_id, std::bind(&bilibili_connection_manager::on_room_data, _session, _room_id, std::placeholders::_1));
         _read_buffer_offset = new_offset;
         _skipping_bytes = new_skipping_bytes;

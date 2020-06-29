@@ -5,7 +5,7 @@
 
 #include <cstring>
 
-std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_message(unsigned char* buf, size_t transferred, size_t buffer_size, size_t skipping_size, buffer_handler handler)
+std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_message(unsigned char* buf, size_t transferred, size_t buffer_size, size_t last_remaining_size, size_t skipping_size, buffer_handler handler)
 {
     using namespace boost::asio::detail::socket_ops;
     spdlog::trace(
@@ -20,7 +20,7 @@ std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_mes
         return std::pair<size_t, size_t>(
             0, next_skipping_size);  // continue disposing
     }
-    long long remaining = transferred - skipping_size;
+    long long remaining = transferred - skipping_size + last_remaining_size;
     auto begin = buf + skipping_size;
 
     while (remaining > 0)
@@ -38,7 +38,8 @@ std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_mes
             return std::pair<size_t, size_t>(remaining, 0);
         }
         auto length = network_to_host_long(*reinterpret_cast<simple_message_header*>(begin));
-        if (length > buffer_size)
+        auto length_with_header = length + simple_message_header_length;
+        if (length_with_header > buffer_size)
         {
             spdlog::info(
                 "[simple_message] [{:p}] Packet too big: {} > max size({}). Disposing and skipping next {} bytes.",
@@ -49,7 +50,7 @@ std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_mes
                 0, length - remaining);  // skip the remaining bytes.
         }
 
-        if (length > remaining)
+        if (length_with_header > remaining)
         {
             // need more data.
             std::memmove(buf, begin, remaining);

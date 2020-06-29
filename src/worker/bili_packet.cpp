@@ -18,6 +18,7 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t, const messa
 std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
                                         const size_t transferred,
                                         const size_t buffer_size,
+                                        const size_t last_remaining_size,
                                         const size_t skipping_size,
                                         worker_supervisor::room_id_t room_id,
                                         message_handler data_handler)
@@ -34,7 +35,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
         return std::pair<size_t, size_t>(
             0, next_skipping_size);  // continue disposing
     }
-    long long remaining = transferred - skipping_size;
+    long long remaining = transferred - skipping_size + last_remaining_size;
     auto begin = buf + skipping_size;
 
     while (remaining > 0)
@@ -53,14 +54,17 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
         }
         auto header = reinterpret_cast<bilibili_packet_header*>(begin);
         auto length = header->length();
-        if (header->header_length() != sizeof(bilibili_packet_header))
+        auto header_length = header->header_length();
+        if (header_length != sizeof(bilibili_packet_header))
         {
             spdlog::warn(
                 "[bili_buffer] [{:p}] Malformed packet: Bad header length(!=16): {}",
-                buf, header->header_length());
+                buf, header_length);
             throw malformed_packet();
         }
-        if (length > buffer_size)
+
+        auto length_with_header = length + header_length;
+        if (length_with_header > buffer_size)
         {
             spdlog::info(
                 "[bili_buffer] [{:p}] Packet too big: {} > max size({}). Disposing and skipping next {} bytes.",
@@ -71,7 +75,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
                 0, header->length() - remaining);  // skip the remaining bytes.
         }
 
-        if (length > remaining)
+        if (length_with_header > remaining)
         {
             // need more data.
             std::memmove(buf, begin, remaining);
@@ -158,7 +162,7 @@ void handle_packet(unsigned char* buf, worker_supervisor::room_id_t room_id, con
             }
             return;
         }
-        handle_buffer(decompressed, out_size, out_size, 0, room_id, handler);
+        handle_buffer(decompressed, out_size, out_size, 0, 0, room_id, handler);
         //handle_packet(decompressed);
     }
     break;
