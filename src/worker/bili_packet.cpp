@@ -63,8 +63,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
             throw malformed_packet();
         }
 
-        auto length_with_header = length + header_length;
-        if (length_with_header > buffer_size)
+        if (length > buffer_size)
         {
             spdlog::info(
                 "[bili_buffer] [{:p}] Packet too big: {} > max size({}). Disposing and skipping next {} bytes.",
@@ -75,7 +74,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
                 0, header->length() - remaining);  // skip the remaining bytes.
         }
 
-        if (length_with_header > remaining)
+        if (length > remaining)
         {
             // need more data.
             std::memmove(buf, begin, remaining);
