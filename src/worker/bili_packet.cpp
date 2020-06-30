@@ -42,7 +42,7 @@ std::pair<size_t, size_t> handle_buffer(unsigned char* buf,
     {
         SPDLOG_TRACE("[bili_buffer] [{:p}] Decoding message, remaining={}",
                       buf, remaining);
-        assert(remaining <= buffer_size && remaining <= transferred);
+        assert(remaining <= buffer_size && remaining <= transferred + last_remaining_size);
         if (remaining < sizeof(bilibili_packet_header))
         {
             // the remaining bytes can't even form a header, so move it to the head and wait for more data.

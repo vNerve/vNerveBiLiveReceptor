@@ -27,7 +27,7 @@ std::pair<size_t, size_t> vNerve::bilibili::worker_supervisor::handle_simple_mes
     {
         spdlog::trace("[simple_message] [{:p}] Decoding message, remaining={}",
                       buf, remaining);
-        assert(remaining <= buffer_size && remaining <= transferred);
+        assert(remaining <= buffer_size && remaining <= transferred + last_remaining_size);
         if (remaining < simple_message_header_length)
         {
             // the remaining bytes can't even form a header, so move it to the head and wait for more data.
