@@ -28,6 +28,7 @@ const int DEFAULT_WORKER_PENALTY_MIN = 1;
 const std::string DEFAULT_AUTH_CODE = "abcdefghijklmnopqrstuvwyzabcdef";
 
 const int DEFAULT_MESSAGE_TTL_SEC = 30;
+const int DEFAULT_MIN_INTERVAL_POPULARITY_SEC = 20;
 
 boost::program_options::options_description create_description()
 {
@@ -74,6 +75,7 @@ boost::program_options::options_description create_description()
     auto descMessage = options_description("Message settings");
     descMessage.add_options()
         ("message-ttl-sec,m", value<int>()->default_value(DEFAULT_MESSAGE_TTL_SEC), "Max time to life for a message in deduplicate container.")
+        ("min-interval-popularity-sec", value<int>()->default_value(DEFAULT_MIN_INTERVAL_POPULARITY_SEC), "Max time between two popularity update packets.")
     ;
 
     auto desc = options_description("vNerve Bilibili Livestream chat crawling supervisor");
@@ -118,7 +120,7 @@ std::shared_ptr<config_supervisor> fill_config(config::config_t raw)
 
     auto& message = result->message;
     message.message_ttl_sec = rawr["message-ttl-sec"].as<int>();
-    // TODO popularity rate control
+    message.min_interval_popularity_sec = rawr["min-interval-popularity-sec"].as<int>();
 
     return result;
 }
@@ -150,6 +152,7 @@ std::shared_ptr<config_dynamic_linker> link_config(config_sv_t config)
     result->register_entry("worker-max-new-tasks-per-bunch", &config->worker.max_new_tasks_per_bunch, true);
 
     result->register_entry("message-ttl-sec", &config->message.message_ttl_sec, true);
+    result->register_entry("min-interval-popularity-sec", &config->message.min_interval_popularity_sec, true);
 
     return result;
 }

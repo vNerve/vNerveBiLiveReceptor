@@ -5,7 +5,6 @@
 #include "simple_worker_proto_generator.h"
 
 #include <algorithm>
-#include <boost/range/adaptor/map.hpp>
 #include <boost/range/adaptors.hpp>
 #include <spdlog/spdlog.h>
 
@@ -457,6 +456,18 @@ void scheduler_session::handle_buffer(
             it.last_received = current_time;
         });
         auto crc32 = *reinterpret_cast<checksum_t*>(payload_data + 5);
+
+        if (crc32 == 0)
+        {
+            auto room_iter = _rooms.find(room_id);
+            if (room_iter == _rooms.end())
+                return;
+            auto& room = room_iter->second;
+            if ((current_time - room.last_empty_crc_received) < std::chrono::seconds(_config->message.min_interval_popularity_sec))
+                return;
+            room.last_empty_crc_received = current_time;
+        }
+
         auto routing_key = reinterpret_cast<char*>(payload_data) + 9;
         auto routing_key_len = strnlen(routing_key, routing_key_max_size);
         spdlog::debug(LOG_PREFIX "[<{0:016x},{1}>] Received data packet. payload_len={2}, CRC32={3}", identifier, room_id, payload_len - 33, crc32);

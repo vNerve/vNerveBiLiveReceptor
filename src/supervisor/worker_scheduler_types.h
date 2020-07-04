@@ -62,6 +62,7 @@ struct room_status
     room_id_t room_id;
 
     bool active = true;
+    std::chrono::system_clock::time_point last_empty_crc_received;
     ///
     /// Not necessarily real-time!
     int current_connections = 0;
