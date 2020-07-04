@@ -24,20 +24,19 @@ private:
     rooms_map _rooms;
     workers_map _workers;
 
-    config::config_t _config;
+    config::config_sv_t _config;
+    config::config_linker_t _config_linker;
     supervisor_diagnostics_context _diag_context;
 
     std::chrono::system_clock::time_point _last_checked;
-    std::chrono::system_clock::duration _min_check_interval;
-    std::chrono::system_clock::duration _worker_interval_threshold;
-    std::chrono::system_clock::duration _worker_penalty;
-    int _max_new_tasks_per_bunch;
 
     supervisor_data_handler _data_handler;
     supervisor_diag_data_handler _diag_data_handler;
     supervisor_server_tick_handler _tick_handler;
 
     char _auth_code[auth_code_size + 1];
+    void load_auth_code();
+    void on_config_updated(void* entry);
 
     ///
     /// 清空属于该 worker 的所有任务。\n
@@ -101,7 +100,9 @@ private:
                             size_t size, std::function<void(unsigned char*)> deleter);
 
 public:
-    scheduler_session(config::config_t config, supervisor_data_handler data_handler, supervisor_diag_data_handler diag_data_handler, supervisor_server_tick_handler tick_handler);
+    scheduler_session(
+        config::config_sv_t config, config::config_linker_t config_linker,
+        supervisor_data_handler data_handler, supervisor_diag_data_handler diag_data_handler, supervisor_server_tick_handler tick_handler);
     ~scheduler_session();
 
     void update_room_lists(std::vector<int>&);

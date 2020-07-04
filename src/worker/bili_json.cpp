@@ -9,8 +9,6 @@
 #include <CRC.h>
 #include <robin_hood.h>
 #include <boost/thread/tss.hpp>
-#include <boost/multi_index_container.hpp>
-#include <boost/multi_index/hashed_index.hpp>
 #include <rapidjson/allocators.h>
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
@@ -19,11 +17,10 @@
 #include <google/protobuf/arena.h>
 #include <spdlog/spdlog.h>
 
-#include <cstring>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <functional>
+#include "robin_hood_ext.h"
 
 using std::function;
 using std::string;
@@ -54,22 +51,8 @@ const size_t JSON_BUFFER_SIZE = 128 * 1024;
 const size_t PARSE_BUFFER_SIZE = 32 * 1024;
 const CRC::Table<uint32_t, 32> crc_lookup_table(CRC::CRC_32());
 
-struct string_view_cmp
-{
-    using is_transparent = void;
-    bool operator()(std::string_view const& a, std::string_view const& b) const { return a == b; }
-    bool operator()(std::string const& a, std::string_view const& b) const { return a == b; }
-    bool operator()(std::string const& a, std::string const& b) const { return a == b; }
-    bool operator()(std::string_view const& a, std::string const& b) const { return a == b; }
-};
-
-struct string_view_hash
-{
-    using is_transparent = void;
-    size_t operator()(const std::string& str) const { return robin_hood::hash_bytes(str.c_str(), str.size()); }
-    size_t operator()(const std::string_view& str) const { return robin_hood::hash_bytes(str.data(), str.size()); }
-};
-robin_hood::unordered_map<std::string, function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>, string_view_hash, string_view_cmp> command;
+using command_handler = function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>;
+util::unordered_map_string<command_handler> command;
 
 class parse_context
 {

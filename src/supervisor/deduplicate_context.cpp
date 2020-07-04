@@ -10,7 +10,7 @@ bool deduplicate_context::check_and_add(checksum_t checksum, std::chrono::system
 
 void deduplicate_context::check_expire(const std::chrono::system_clock::time_point now)
 {
-    auto exp = now - _threshold;
+    auto exp = now - std::chrono::seconds(*_threshold_sec_ptr);
     auto& container_seq = _container.get<0>();
     for (
         auto it = container_seq.begin();

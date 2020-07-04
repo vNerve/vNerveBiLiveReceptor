@@ -1,4 +1,5 @@
 #include "config.h"
+#include "config_sv.h"
 
 namespace vNerve::bilibili::config
 {
@@ -60,7 +61,6 @@ boost::program_options::options_description create_description()
     auto descWorker = options_description("Worker settings");
     descWorker.add_options()
         ("worker-port", value<int>()->default_value(DEFAULT_WORKER_PORT), "Listening port for workers.")
-        ("worker-receive-timeout,t", value<int>()->default_value(DEFAULT_WORKER_RECV_TIMEOUT_SEC), "Timeout for receiving from workers(sec).")
         ("check-interval-ms,c", value<int>()->default_value(DEFAULT_WORKER_CHECK_INTERVAL_MS), "Interval between checking all room/worker state.")
         ("min-check-interval-ms,C", value<int>()->default_value(DEFAULT_WORKER_MIN_CHECK_INTERVAL_MS), "Minimum interval between checking all room/worker state.")
         ("read-buffer,b", value<size_t>()->default_value(DEFAULT_READ_BUFFER), "Reading buffer size(bytes) of sockets to each worker.")
@@ -85,4 +85,73 @@ boost::program_options::options_description create_description()
     return desc;
     // clang-format on
 }
+
+std::shared_ptr<config_supervisor> fill_config(config::config_t raw)
+{
+    auto& rawr = *raw;
+    auto result = std::make_shared<config_supervisor>();
+
+    auto& amqp = result->amqp;
+    amqp.host = rawr["amqp-host"].as<std::string>();
+    amqp.port = rawr["amqp-port"].as<int>();
+    amqp.user = rawr["amqp-user"].as<std::string>();
+    amqp.password = rawr["amqp-password"].as<std::string>();
+    amqp.vhost = rawr["amqp-vhost"].as<std::string>();
+    amqp.reconnect_interval_sec = rawr["amqp-reconnect-interval-sec"].as<int>();
+    amqp.exchange = rawr["amqp-exchange"].as<std::string>();
+    amqp.diag_exchange = rawr["amqp-diag-exchange"].as<std::string>();
+
+    auto& rlu = result->room_list_updater;
+    rlu.url = rawr["room-list-update-url"].as<std::string>();
+    rlu.interval_min = rawr["room-list-update-interval"].as<int>();
+    rlu.timeout_sec = rawr["room-list-update-timeout-sec"].as<int>();
+
+    auto& worker = result->worker;
+    worker.port = rawr["worker-port"].as<int>();
+    worker.auth_code = rawr["auth-code"].as<std::string>();
+    worker.worker_timeout_sec = rawr["worker-interval-threshold-sec"].as<int>();
+    worker.check_interval_msec = rawr["check-interval-ms"].as<int>();
+    worker.min_check_interval_msec = rawr["min-check-interval-ms"].as<int>();
+    worker.worker_penalty_min = rawr["worker-penalty-min"].as<int>();
+    worker.read_buffer_size = rawr["read-buffer"].as<size_t>();
+    worker.max_new_tasks_per_bunch = rawr["worker-max-new-tasks-per-bunch"].as<int>();
+
+    auto& message = result->message;
+    message.message_ttl_sec = rawr["message-ttl-sec"].as<int>();
+    // TODO popularity rate control
+
+    return result;
+}
+
+std::shared_ptr<config_dynamic_linker> link_config(config_sv_t config)
+{
+    auto result = std::make_shared<config_dynamic_linker>();
+
+    result->register_entry("amqp-host", static_cast<std::string*>(nullptr), false);
+    result->register_entry("amqp-port", static_cast<int*>(nullptr), false);
+    result->register_entry("amqp-user", static_cast<std::string*>(nullptr), false);
+    result->register_entry("amqp-password", static_cast<std::string*>(nullptr), false);
+    result->register_entry("amqp-vhost", static_cast<std::string*>(nullptr), false);
+    result->register_entry("amqp-reconnect-interval-sec", static_cast<int*>(nullptr), false);
+    result->register_entry("amqp-exchange", static_cast<std::string*>(nullptr), false);
+    result->register_entry("amqp-diag-exchange", static_cast<std::string*>(nullptr), false);
+
+    result->register_entry("room-list-update-url", &config->room_list_updater.url, true);
+    result->register_entry("room-list-update-interval", &config->room_list_updater.interval_min, true);
+    result->register_entry("room-list-update-timeout-sec", &config->room_list_updater.timeout_sec, true);
+
+    result->register_entry("worker-port", static_cast<int*>(nullptr), false);
+    result->register_entry("auth-code", &config->worker.auth_code, true);
+    result->register_entry("worker-interval-threshold-sec", &config->worker.worker_timeout_sec, true);
+    result->register_entry("check-interval-ms", &config->worker.check_interval_msec, true);
+    result->register_entry("min-check-interval-ms", &config->worker.min_check_interval_msec, true);
+    result->register_entry("worker-penalty-min", &config->worker.worker_penalty_min, true);
+    result->register_entry("read-buffer", static_cast<int*>(nullptr), false);
+    result->register_entry("worker-max-new-tasks-per-bunch", &config->worker.max_new_tasks_per_bunch, true);
+
+    result->register_entry("message-ttl-sec", &config->message.message_ttl_sec, true);
+
+    return result;
+}
+
 }  // namespace vNerve::bilibili::config

@@ -1,5 +1,5 @@
 #pragma once
-#include "config.h"
+#include "config_sv.h"
 
 #include <boost/asio.hpp>
 #include <boost/noncopyable.hpp>
@@ -85,7 +85,7 @@ private:
     void on_ready();
 
 public:
-    amqp_context(config::config_t options);
+    amqp_context(config::config_sv_t options);
     ~amqp_context();
 
     void post_payload(std::string_view routing_key, unsigned char const* payload, size_t len);

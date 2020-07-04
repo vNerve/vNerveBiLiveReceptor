@@ -1,6 +1,6 @@
 #pragma once
 
-#include "config.h"
+#include "config_sv.h"
 #include "simple_worker_proto_handler.h"
 #include "asio_socket_write_helper.h"
 #include "type.h"
@@ -77,7 +77,7 @@ public:
 class worker_connection_manager
 {
 private:
-    config::config_t _config;
+    config::config_sv_t _config;
 
     boost::asio::io_context _context;
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
@@ -85,8 +85,6 @@ private:
     robin_hood::unordered_map<identifier_t, std::shared_ptr<worker_session>> _sockets;
     boost::asio::ip::tcp::acceptor _acceptor;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
-    int _timer_interval_ms;
-    size_t _read_buffer_size;
 
     boost::thread _thread;
     supervisor_buffer_handler _buffer_handler;
@@ -106,7 +104,7 @@ private:
     void on_timer_tick(const boost::system::error_code& ec);
 
 public:
-    worker_connection_manager(config::config_t config,
+    worker_connection_manager(config::config_sv_t config,
                               supervisor_buffer_handler,
                               supervisor_tick_handler,
                               supervisor_new_worker_handler,

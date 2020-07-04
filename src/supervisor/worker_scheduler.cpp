@@ -24,14 +24,11 @@ bool compare_worker(const worker_status* lhs, const worker_status* rhs)
 
 // =============================== scheduler_session ===============================
 
-scheduler_session::scheduler_session(const config::config_t config, supervisor_data_handler data_handler, supervisor_diag_data_handler diag_data_handler, supervisor_server_tick_handler tick_handler)
+scheduler_session::scheduler_session(
+    const config::config_sv_t config, const config::config_linker_t config_linker,
+    supervisor_data_handler data_handler, supervisor_diag_data_handler diag_data_handler, supervisor_server_tick_handler tick_handler)
     : _config(config),
-      _min_check_interval(
-          std::chrono::milliseconds(
-              (*config)["min-check-interval-ms"].as<int>())),
-      _worker_interval_threshold(std::chrono::seconds((*config)["worker-interval-threshold-sec"].as<int>())),
-      _worker_penalty(std::chrono::minutes((*config)["worker-penalty-min"].as<int>())),
-      _max_new_tasks_per_bunch((*config)["worker-max-new-tasks-per-bunch"].as<int>()),
+      _config_linker(config_linker),
       _data_handler(std::move(data_handler)),
       _diag_data_handler(std::move(diag_data_handler)),
       _tick_handler(std::move(tick_handler))
@@ -45,14 +42,14 @@ scheduler_session::scheduler_session(const config::config_t config, supervisor_d
         std::bind(&scheduler_session::handle_new_worker, this,
                   std::placeholders::_1),
         std::bind(&scheduler_session::handle_worker_disconnect, this, std::placeholders::_1));
+    load_auth_code();
 
-    std::memset(_auth_code, 0, auth_code_size + 1);
-    auto const& auth_code_str = (*config)["auth-code"].as<std::string>();
-    std::memcpy(_auth_code, auth_code_str.c_str(), auth_code_str.size());
+    _config_linker->register_listener(this, std::bind(&scheduler_session::on_config_updated, this, std::placeholders::_1));
 }
 
 scheduler_session::~scheduler_session()
 {
+    _config_linker->unregister_listener(this);
 }
 
 void scheduler_session::update_room_lists(std::vector<int>& rooms)
@@ -83,6 +80,21 @@ void scheduler_session::update_room_lists(std::vector<int>& rooms)
 void scheduler_session::join()
 {
     _worker_session->join();
+}
+
+void scheduler_session::load_auth_code()
+{
+    std::memset(_auth_code, 0, auth_code_size + 1);
+    auto const& auth_code_str = _config->worker.auth_code;
+    std::memcpy(_auth_code, auth_code_str.c_str(), auth_code_str.size());
+}
+
+void scheduler_session::on_config_updated(void* entry)
+{
+    if (entry == &_config->worker.auth_code)
+        post(_worker_session->context(), [this]() -> void {
+            load_auth_code();
+        });
 }
 
 void scheduler_session::clear_worker_tasks(identifier_t identifier)
@@ -138,9 +150,9 @@ Iterator scheduler_session::delete_task(Iterator iter, const bool desc_rank)
         if (desc_rank)
         {
             if (!worker_iter->second.punished)
-                worker_iter->second.allow_new_task_after = std::chrono::system_clock::now() + _worker_penalty;
+                worker_iter->second.allow_new_task_after = std::chrono::system_clock::now() + std::chrono::minutes(_config->worker.worker_penalty_min);
             else
-                worker_iter->second.allow_new_task_after += _worker_penalty; // acc
+                worker_iter->second.allow_new_task_after += std::chrono::minutes(_config->worker.worker_penalty_min);  // acc
             //SPDLOG_TRACE(LOG_PREFIX "Updating rank of worker: {}", worker_iter->second.allow_new_task_after.count());
         }
         worker_iter->second.current_connections--;
@@ -196,8 +208,9 @@ void scheduler_session::refresh_counts()
 void scheduler_session::check_worker_task_interval()
 {
     auto now = std::chrono::system_clock::now();
+    auto threshold = std::chrono::seconds(_config->worker.worker_timeout_sec);
     for (auto& [_, worker] : _workers)
-        if (now - worker.last_received > _worker_interval_threshold)
+        if (now - worker.last_received > threshold)
         {
             spdlog::warn(LOG_PREFIX "[{0:016x}] Worker exceeding max interval, disconnecting!", worker.current_connections);
             delete_and_disconnect_worker(&worker);
@@ -205,7 +218,7 @@ void scheduler_session::check_worker_task_interval()
     for (auto it = _tasks.begin(); it != _tasks.end();)
     {
         auto last_recv = it->last_received;
-        if (now - last_recv < _worker_interval_threshold)
+        if (now - last_recv < threshold)
             ++it;
         else
         {
@@ -237,7 +250,8 @@ void scheduler_session::check_all_states()
     // Ensure minimum checking interval.
     // This function is costly, so a min interval is required.
     auto current_time = std::chrono::system_clock::now();
-    if (current_time - _last_checked < _min_check_interval)
+    auto min_interval = std::chrono::milliseconds(_config->worker.min_check_interval_msec);
+    if (current_time - _last_checked < min_interval)
         return;
     _last_checked = current_time;
 
@@ -270,6 +284,7 @@ void scheduler_session::check_all_states()
     }
 
     // 先找出所有没有满掉的 worker
+    auto max_new_per_bunch = _config->worker.max_new_tasks_per_bunch;
     std::vector<worker_status*> workers_available;
     for (auto& [_, worker] : _workers)
         if (worker.current_connections < worker.max_rooms
@@ -277,7 +292,7 @@ void scheduler_session::check_all_states()
         {
             workers_available.push_back(&worker);
             worker.punished = false;
-            worker.remaining_this_bunch = _max_new_tasks_per_bunch;
+            worker.remaining_this_bunch = max_new_per_bunch;
         }
     //if (workers_available.empty())
     //{

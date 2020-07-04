@@ -65,7 +65,7 @@ void worker_session::disconnect(bool callback)
 }
 
 worker_connection_manager::worker_connection_manager(
-    const config::config_t config,
+    const config::config_sv_t config,
     supervisor_buffer_handler buffer_handler,
     supervisor_tick_handler tick_handler,
     supervisor_new_worker_handler new_worker_handler,
@@ -74,8 +74,6 @@ worker_connection_manager::worker_connection_manager(
       _guard(_context.get_executor()),
       _acceptor(_context, boost::asio::ip::tcp::v4()),
       _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
-      _timer_interval_ms((*config)["check-interval-ms"].as<int>()),
-      _read_buffer_size((*config)["read-buffer"].as<size_t>()),
       _buffer_handler(std::move(buffer_handler)),
       _tick_handler(std::move(tick_handler)),
       _new_worker_handler(std::move(new_worker_handler)),
@@ -85,7 +83,7 @@ worker_connection_manager::worker_connection_manager(
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
 
-    auto port = (*config)["worker-port"].as<int>();
+    auto port = config->worker.port;
     try
     {
         _acceptor.bind(boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port));
@@ -168,7 +166,7 @@ void worker_connection_manager::on_accept(
         auto [iter, inserted] = _sockets.emplace(
             identifier,
             std::make_shared<worker_session>(
-                identifier, socket, _read_buffer_size, _buffer_handler, _disconnect_handler));
+                identifier, socket, _config->worker.read_buffer_size, _buffer_handler, _disconnect_handler));
         iter->second->init();
 
         _new_worker_handler(identifier);
@@ -180,7 +178,7 @@ void worker_connection_manager::on_accept(
 void worker_connection_manager::reschedule_timer()
 {
     _timer->expires_from_now(
-        boost::posix_time::milliseconds(_timer_interval_ms));
+        boost::posix_time::milliseconds(_config->worker.min_check_interval_msec));
     _timer->async_wait(boost::bind(&worker_connection_manager::on_timer_tick,
                                    this,
                                    boost::asio::placeholders::error));

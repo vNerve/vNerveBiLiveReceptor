@@ -9,10 +9,9 @@ namespace vNerve::bilibili
 CURLcode curl_initialized = curl_global_init(CURL_GLOBAL_ALL);
 const char* CURL_ACCEPT_ENCODING = "gzip, deflate, br";
 const int CURL_MAX_SIZE = 4 * 1024 * 1024;  // 4 MB
-http_interval_updater::http_interval_updater(boost::posix_time::time_duration update_interval, int timeout_sec)
+http_interval_updater::http_interval_updater()
     : _guard(_context.get_executor()),
-      _timer(std::make_unique<boost::asio::deadline_timer>(_context)),
-      _update_interval(std::move(update_interval))
+      _timer(std::make_unique<boost::asio::deadline_timer>(_context))
 {
     _thread =
         boost::thread(boost::bind(&boost::asio::io_context::run, &_context));
@@ -24,7 +23,6 @@ http_interval_updater::http_interval_updater(boost::posix_time::time_duration up
             "[http_upd] Failed creating libcURL handle!");
         return;
     }
-    curl_easy_setopt(_curl, CURLOPT_TIMEOUT, timeout_sec);
 }
 
 http_interval_updater::~http_interval_updater()
@@ -55,7 +53,7 @@ void http_interval_updater::init()
 
 void http_interval_updater::reschedule_timer()
 {
-    _timer->expires_from_now(_update_interval);
+    _timer->expires_from_now(boost::posix_time::seconds(on_update_interval_sec()));
     _timer->async_wait(boost::bind(&http_interval_updater::on_timer_tick, shared_from_this(),
                                    boost::asio::placeholders::error));
 }
@@ -118,6 +116,7 @@ size_t http_interval_updater_receive_content_length(char* buf, size_t size, size
 
 void http_interval_updater::setup_curl()
 {
+    curl_easy_setopt(_curl, CURLOPT_TIMEOUT, on_timeout_sec());
     //curl_easy_setopt(_curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt(_curl, CURLOPT_COOKIELIST, "ALL");
     auto request_url = on_request_url();

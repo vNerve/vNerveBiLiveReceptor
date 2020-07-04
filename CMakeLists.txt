@@ -61,6 +61,7 @@ set(SUPERVISOR_SOURCE_FILES
     "src/supervisor/deduplicate_context.cpp"
     "src/supervisor/diagnostic_context.cpp"
     "src/supervisor/global_context.cpp"
+    "src/supervisor/command_handler_sv.cpp"
 
     "proto/cpp/vNerve/bilibili/live/diagnostics.pb.cc"
 )

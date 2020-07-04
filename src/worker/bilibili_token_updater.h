@@ -17,6 +17,9 @@ private:
     std::string _referer{};
     bilibili_token_updater_callback _callback{};
 
+    int _interval_sec;
+    int _timeout_sec;
+
     const char* on_request_url() override { return _url.c_str(); }
     const char* on_request_method() override;
     const char* on_request_payload() override { return nullptr; }
@@ -24,6 +27,8 @@ private:
     const char* on_user_agent() override { return _user_agent.c_str(); }
     const char* on_request_accept() override;
     const char* on_request_referer() override { return _referer.c_str(); }
+    int on_update_interval_sec() override { return _interval_sec; }
+    int on_timeout_sec() override { return _timeout_sec; }
     void on_updated(std::string_view) override;
 public:
     bilibili_token_updater(config::config_t config, bilibili_token_updater_callback callback);

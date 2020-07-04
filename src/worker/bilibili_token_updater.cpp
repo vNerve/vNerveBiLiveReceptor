@@ -93,7 +93,9 @@ void bilibili_token_updater::on_updated(std::string_view body)
 }
 
 bilibili_token_updater::bilibili_token_updater(const config::config_t config, bilibili_token_updater_callback callback)
-    : http_interval_updater(boost::posix_time::seconds((*config)["chat-config-interval-sec"].as<int>()), (*config)["chat-config-timeout-sec"].as<int>()),
+    : http_interval_updater(),
+      _timeout_sec((*config)["chat-config-timeout-sec"].as<int>()),
+      _interval_sec((*config)["chat-config-interval-sec"].as<int>()),
       _url((*config)["chat-config-url"].as<std::string>()),
       _user_agent((*config)["chat-config-user-agent"].as<std::string>()),
       _referer((*config)["chat-config-referer"].as<std::string>()),

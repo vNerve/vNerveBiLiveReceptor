@@ -25,7 +25,7 @@ private:
     void on_server_tick();
 
 public:
-    supervisor_global_context(config::config_t);
+    supervisor_global_context(config::config_sv_t, config::config_linker_t);
     ~supervisor_global_context();
 
     void join();

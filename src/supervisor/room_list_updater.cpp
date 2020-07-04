@@ -8,10 +8,10 @@
 namespace vNerve::bilibili::info
 {
 vtuber_info_updater::vtuber_info_updater(
-    std::shared_ptr<boost::program_options::variables_map> options,
+    config::config_sv_t options,
     vtuber_info_update_callback callback)
-    : http_interval_updater((*options)["room-list-update-interval"].as<int>(), (*options)["room-list-update-timeout-sec"].as<int>()),
-      _server_url((*options)["room-list-update-url"].as<std::string>()),
+    : http_interval_updater(),
+      _server_url(&options->room_list_updater.url),
       _options(options),
       _callback(std::move(callback))
 {

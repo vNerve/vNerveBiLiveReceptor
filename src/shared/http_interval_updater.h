@@ -17,8 +17,6 @@ private:
     boost::thread _thread;
     std::unique_ptr<boost::asio::deadline_timer> _timer;
 
-    boost::posix_time::time_duration _update_interval;
-
     CURL* _curl;
 
     void reschedule_timer();
@@ -34,13 +32,13 @@ protected:
     virtual const char* on_user_agent() = 0;
     virtual const char* on_request_accept() = 0;
     virtual const char* on_request_referer() = 0;
+    virtual int on_update_interval_sec() = 0;
+    virtual int on_timeout_sec() = 0;
 
     virtual void on_updated(std::string_view) = 0;
 
 public:
-    http_interval_updater(int update_interval_min, int timeout_sec)
-        : http_interval_updater(boost::posix_time::minutes(update_interval_min), timeout_sec) {}
-    http_interval_updater(boost::posix_time::time_duration update_interval, int timeout_sec);
+    http_interval_updater();
     virtual ~http_interval_updater();
 
     void init();

@@ -257,18 +257,18 @@ void amqp_context::on_ready()
     _channel->declareExchange(_diag_exchange, AMQP::ExchangeType::fanout);
 }
 
-amqp_context::amqp_context(const config::config_t options)
+amqp_context::amqp_context(const config::config_sv_t options)
     : _connection(
         std::make_shared<amqp_asio_connection>(
-            (*options)["amqp-host"].as<std::string>(),
-            (*options)["amqp-port"].as<int>(),
+            options->amqp.host,
+            options->amqp.port,
             AMQP::Login(
-                (*options)["amqp-user"].as<std::string>(),
-                (*options)["amqp-password"].as<std::string>()),
-            (*options)["amqp-vhost"].as<std::string>(),
-            (*options)["amqp-reconnect-interval-sec"].as<int>())),
-      _exchange((*options)["amqp-exchange"].as<std::string>()),
-      _diag_exchange((*options)["amqp-diag-exchange"].as<std::string>()),
+                options->amqp.user,
+                options->amqp.password),
+            options->amqp.vhost,
+            options->amqp.reconnect_interval_sec)),
+      _exchange(options->amqp.exchange),
+      _diag_exchange(options->amqp.diag_exchange),
       _write_buf(new unsigned char[write_buf_default_size]),
       _write_buf_len(write_buf_default_size)
 {

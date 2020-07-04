@@ -32,11 +32,12 @@ private:
                 boost::multi_index::sequenced<>,
                 boost::multi_index::hashed_unique<boost::multi_index::member<deduplicate_entry, checksum_t, &deduplicate_entry::value>>>>;
     deduplicate_container _container;
-    std::chrono::system_clock::duration _threshold;
+
+    int* _threshold_sec_ptr;
 
 public:
-    deduplicate_context(const std::chrono::system_clock::duration threshold)
-        : _threshold(threshold) {}
+    deduplicate_context(int* threshold_sec)
+        : _threshold_sec_ptr(threshold_sec) {}
 
     bool check_and_add(const checksum_t checksum) { return check_and_add(checksum, std::chrono::system_clock::now()); }
     bool check_and_add(checksum_t checksum, std::chrono::system_clock::time_point add_time);
@@ -49,7 +50,7 @@ public:
     deduplicate_context(const deduplicate_context& other) = delete;
     deduplicate_context(deduplicate_context&& other) noexcept
         : _container(std::move(other._container)),
-          _threshold(other._threshold)
+          _threshold_sec_ptr(other._threshold_sec_ptr)
     {
     }
 
@@ -59,7 +60,7 @@ public:
         if (this == &other)
             return *this;
         _container = std::move(other._container);
-        _threshold = other._threshold;
+        _threshold_sec_ptr = other._threshold_sec_ptr;
         return *this;
     }
 };
