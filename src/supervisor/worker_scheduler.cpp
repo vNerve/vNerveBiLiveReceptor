@@ -5,6 +5,7 @@
 #include "simple_worker_proto_generator.h"
 
 #include <algorithm>
+#include <boost/range/adaptor/map.hpp>
 #include <boost/range/adaptors.hpp>
 #include <spdlog/spdlog.h>
 
@@ -184,13 +185,14 @@ void scheduler_session::assign_task(worker_status* worker, room_status* room, st
     spdlog::debug(LOG_PREFIX "[{0:016x}] Assigning task to room {1}. N_wk={2}, N_rm={3}", worker->identifier, room->room_id, worker->current_connections, room->current_connections);
 }
 
-int scheduler_session::calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count)
+template <class Container>
+int scheduler_session::calculate_max_workers_per_room(Container const& workers_available, int room_count)
 {
     if (room_count == 0)
         return 0;
     long long sum = 0;
-    for (worker_status* worker : workers_available)
-        sum += worker->max_rooms;
+    for (auto const& [_, worker] : workers_available)
+        sum += worker.max_rooms;
     return static_cast<int>(sum / room_count);
 }
 
@@ -302,7 +304,7 @@ void scheduler_session::check_all_states()
     // 按照权值算法排序 worker
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
 
-    int max_tasks_per_room = calculate_max_workers_per_room(workers_available, _rooms.size());
+    int max_tasks_per_room = calculate_max_workers_per_room(_workers, _rooms.size());
     max_tasks_per_room = std::min(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
     SPDLOG_TRACE(LOG_PREFIX "Use max t/rm: {}", max_tasks_per_room);
 

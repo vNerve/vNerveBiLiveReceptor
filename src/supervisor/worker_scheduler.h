@@ -73,7 +73,8 @@ private:
 
     ///
     /// Calculate the maximum count of workers connecting to one single room.
-    static int calculate_max_workers_per_room(std::vector<worker_status*>& workers_available, int room_count);
+    template <class Container>
+    static int calculate_max_workers_per_room(Container const& workers_available, int room_count);
     ///
     /// 强制更新 worker 和 room 的连接计数器
     void refresh_counts();
