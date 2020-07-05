@@ -175,9 +175,9 @@ void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, 
 
 void scheduler_session::assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now)
 {
-    SPDLOG_TRACE(LOG_PREFIX "Trying to assign task <{0:016x},{1}>", worker->identifier, room->room_id);
     auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id, now);
     if (!inserted) return;
+    SPDLOG_TRACE(LOG_PREFIX "Trying to assign task <{0:016x},{1}>", worker->identifier, room->room_id);
     send_assign(worker->identifier, room->room_id);
     worker->current_connections++;
     room->current_connections++;
@@ -340,7 +340,7 @@ void scheduler_session::check_all_states()
         else if (underkill > 0)
         {
             // Not enough workers on this room.
-            spdlog::debug(LOG_PREFIX "Not enough workers on room {0}({2}). Try to assign {1} rooms.", room_id, underkill, room.current_connections);
+            //spdlog::debug(LOG_PREFIX "Not enough workers on room {0}({2}). Try to assign {1} rooms.", room_id, underkill, room.current_connections);
             for (auto iter = workers_available.begin(); iter != workers_available.end();)
             {
                 auto worker = *iter;
