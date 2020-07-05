@@ -118,7 +118,7 @@ struct command_handler : boost::static_visitor<>
     template <typename T>
     void operator()(T) const
     {
-        std::cerr << "INTERNAL ERROR: No command handle provided. Report this to the developer!" << std::cout;
+        std::cerr << "INTERNAL ERROR: No command handle provided. Report this to the developer!" << std::endl;
         spdlog::error("INTERNAL ERROR: No command handler provided. Report this to the developer!");
         abort();
     }
