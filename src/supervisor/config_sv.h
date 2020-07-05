@@ -48,6 +48,12 @@ struct config_supervisor
         int message_ttl_sec;
         int min_interval_popularity_sec;
     } message;
+
+    struct config_diag
+    {
+        int profiler_port;
+        bool profiler_limit_localhost;
+    } diag;
 };
 
 using config_sv_t = std::shared_ptr<config_supervisor>;

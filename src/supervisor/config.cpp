@@ -30,6 +30,8 @@ const std::string DEFAULT_AUTH_CODE = "abcdefghijklmnopqrstuvwyzabcdef";
 const int DEFAULT_MESSAGE_TTL_SEC = 30;
 const int DEFAULT_MIN_INTERVAL_POPULARITY_SEC = 20;
 
+const int DEFAULT_PROFILER_PORT = 7216;
+
 boost::program_options::options_description create_description()
 {
     // clang-format off
@@ -78,12 +80,19 @@ boost::program_options::options_description create_description()
         ("min-interval-popularity-sec", value<int>()->default_value(DEFAULT_MIN_INTERVAL_POPULARITY_SEC), "Max time between two popularity update packets.")
     ;
 
+    auto descDiagnostics = options_description("Diagnostics settings");
+    descDiagnostics.add_options()
+        ("profiler-port", value<int>()->default_value(DEFAULT_PROFILER_PORT), "Remote port for profiler.")
+        ("profiler-limit-local", bool_switch()->default_value(false), "Accept only connections from localhost in profiler..")
+    ;
+
     auto desc = options_description("vNerve Bilibili Livestream chat crawling supervisor");
     desc.add(descGeneric);
     desc.add(descRoomList);
     desc.add(descMQList);
     desc.add(descMessage);
     desc.add(descWorker);
+    desc.add(descDiagnostics);
     return desc;
     // clang-format on
 }
@@ -122,6 +131,10 @@ std::shared_ptr<config_supervisor> fill_config(config::config_t raw)
     message.message_ttl_sec = rawr["message-ttl-sec"].as<int>();
     message.min_interval_popularity_sec = rawr["min-interval-popularity-sec"].as<int>();
 
+    auto& diag = result->diag;
+    diag.profiler_port = rawr["profiler-port"].as<int>();
+    diag.profiler_limit_localhost = rawr["profiler-limit-local"].as<bool>();
+
     return result;
 }
 
@@ -153,6 +166,9 @@ std::shared_ptr<config_dynamic_linker> link_config(config_sv_t config)
 
     result->register_entry("message-ttl-sec", &config->message.message_ttl_sec, true);
     result->register_entry("min-interval-popularity-sec", &config->message.min_interval_popularity_sec, true);
+
+    result->register_entry("profiler-port", &config->diag.profiler_port, false);
+    result->register_entry("profiler-limit-local", static_cast<int*>(nullptr), false);
 
     return result;
 }

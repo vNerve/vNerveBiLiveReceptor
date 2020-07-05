@@ -3,6 +3,7 @@
 #include "worker_connection_manager.h"
 #include "simple_worker_proto.h"
 #include "simple_worker_proto_generator.h"
+#include "profiler.h"
 
 #include <algorithm>
 #include <boost/range/adaptors.hpp>
@@ -197,6 +198,7 @@ int scheduler_session::calculate_max_workers_per_room(Container const& workers_a
 
 void scheduler_session::refresh_counts()
 {
+    VN_PROFILE_SCOPED(RefreshConnectionCounter)
     auto& tasks_by_wid = _tasks.get<tasks_by_identifier>();
     auto& tasks_by_rid = _tasks.get<tasks_by_room_id>();
 
@@ -208,6 +210,7 @@ void scheduler_session::refresh_counts()
 
 void scheduler_session::check_worker_task_interval()
 {
+    VN_PROFILE_SCOPED(WorkerTaskIntervalCheck)
     auto now = std::chrono::system_clock::now();
     auto threshold = std::chrono::seconds(_config->worker.worker_timeout_sec);
     for (auto& [_, worker] : _workers)
@@ -250,6 +253,8 @@ void scheduler_session::check_all_states()
 {
     // Ensure minimum checking interval.
     // This function is costly, so a min interval is required.
+
+    VN_PROFILE_SCOPED(SupervisorCheck)
     auto current_time = std::chrono::system_clock::now();
     auto min_interval = std::chrono::milliseconds(_config->worker.min_check_interval_msec);
     if (current_time - _last_checked < min_interval)
@@ -266,6 +271,7 @@ void scheduler_session::check_all_states()
     tasks_by_room_id_t& tasks_by_rid = _tasks.get<tasks_by_room_id>();
     // tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>(); // unused
 
+    VN_PROFILE_BEGIN(RemoveInactiveRoom)
     // Delete all inactive rooms
     for (auto it = _rooms.begin(); it != _rooms.end();)
     {
@@ -283,8 +289,10 @@ void scheduler_session::check_all_states()
             send_unassign(task_iter->identifier, task_iter->room_id);
         it = _rooms.erase(it);
     }
+    VN_PROFILE_END()
 
     // 先找出所有没有满掉的 worker
+    VN_PROFILE_BEGIN(CollectAvailableWorker)
     auto max_new_per_bunch = _config->worker.max_new_tasks_per_bunch;
     std::vector<worker_status*> workers_available;
     for (auto& [_, worker] : _workers)
@@ -302,6 +310,7 @@ void scheduler_session::check_all_states()
     //}
     // 按照权值算法排序 worker
     std::sort(workers_available.begin(), workers_available.end(), compare_worker);
+    VN_PROFILE_END()
 
     int max_tasks_per_room = calculate_max_workers_per_room(_workers, _rooms.size());
     max_tasks_per_room = std::min(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
@@ -309,6 +318,7 @@ void scheduler_session::check_all_states()
 
     update_diagnostics(max_tasks_per_room);
 
+    VN_PROFILE_BEGIN(AssignTask)
     for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
     {
         //SPDLOG_TRACE(LOG_PREFIX "Handling room {0}", it->first);
@@ -350,10 +360,13 @@ void scheduler_session::check_all_states()
         //if (room.current_connections < 1)
             //spdlog::warn(LOG_PREFIX "Room {0} can't get any worker!", room_id);
     }
+
+    VN_PROFILE_END()
 }
 
 void scheduler_session::update_diagnostics(int max_tasks_per_room)
 {
+    VN_PROFILE_SCOPED(UpdateDiagnostics)
     _diag_context.update_diagnostics(_rooms, _workers, _tasks, max_tasks_per_room);
     _diag_data_handler(_diag_context.data(), _diag_context.size());
 }
@@ -391,6 +404,7 @@ void scheduler_session::handle_buffer(
 {
     if (payload_len < room_failed_payload_length)
         return; // Malformed
+    VN_PROFILE_SCOPED(HandleWorkerBuffer)
     auto op_code = payload_data[0]; // data[0]
     room_id_t room_id = boost::asio::detail::socket_ops::network_to_host_long(
         *reinterpret_cast<simple_message_header*>(payload_data + 1)); // data[1,2,3,4]

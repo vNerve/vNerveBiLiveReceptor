@@ -16,6 +16,7 @@ private:
     mq::amqp_context _amqp_context;
     deduplicate_context _deduplicate_context;
     std::shared_ptr<worker_supervisor::scheduler_session> _scheduler;
+    config::config_linker_t _config_linker;
 
     std::shared_ptr<info::vtuber_info_updater> _room_list_updater;
 
@@ -29,5 +30,6 @@ public:
     ~supervisor_global_context();
 
     void join();
+    void handle_command(std::string_view input);
 };
 }

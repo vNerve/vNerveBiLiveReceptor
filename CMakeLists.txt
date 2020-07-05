@@ -33,7 +33,8 @@ set(WORKER_SOURCE_FILES
     "src/worker/global_context.cpp"
 
     "proto/cpp/vNerve/bilibili/live/room_message.pb.cc"
-    "proto/cpp/vNerve/bilibili/live/user_message.pb.cc")
+    "proto/cpp/vNerve/bilibili/live/user_message.pb.cc"
+)
 add_executable(${WORKER_EXECUTABLE_NAME} ${WORKER_SOURCE_FILES})
 target_include_directories(
     ${WORKER_EXECUTABLE_NAME} PUBLIC
@@ -61,9 +62,12 @@ set(SUPERVISOR_SOURCE_FILES
     "src/supervisor/deduplicate_context.cpp"
     "src/supervisor/diagnostic_context.cpp"
     "src/supervisor/global_context.cpp"
+    "src/supervisor/profiler.cpp"
     "src/supervisor/command_handler_sv.cpp"
 
     "proto/cpp/vNerve/bilibili/live/diagnostics.pb.cc"
+
+    "vendor/Remotery.c"
 )
 add_executable(${SUPERVISOR_EXECUTABLE_NAME} ${SUPERVISOR_SOURCE_FILES})
 target_include_directories(

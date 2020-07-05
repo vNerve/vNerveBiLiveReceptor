@@ -1,6 +1,8 @@
 #pragma once
 
 #include "config.h"
+#include "profiler.h"
+
 //#define BOOST_SPIRIT_DEBUG
 #include <iostream>
 #include <exception>
@@ -117,6 +119,7 @@ struct command_handler : boost::static_visitor<>
     void operator()(T) const
     {
         std::cerr << "INTERNAL ERROR: No command handle provided. Report this to the developer!" << std::cout;
+        spdlog::error("INTERNAL ERROR: No command handler provided. Report this to the developer!");
         abort();
     }
 };
@@ -126,11 +129,15 @@ inline void command_handler::operator()<ast::cmd::level>(ast::cmd::level level_a
 {
     auto level = spdlog::level::from_str(level_ast.target_level);
     if (level == spdlog::level::off && level_ast.target_level != "off")
+    {
         std::cerr << "[cmd_handler] Unknown logging level " << level_ast.target_level << " !" << std::endl;
+        spdlog::error("[cmd_handler] Unknown logging level {} !", level_ast.target_level);
+    }
     else
     {
         spdlog::set_level(level);
-        spdlog::log(level, "[cmd_handler] Set logging level to {}", spdlog::level::to_string_view(level));
+        if (level != spdlog::level::off)
+            spdlog::log(level, "[cmd_handler] Set logging level to {}", spdlog::level::to_string_view(level));
     }
 }
 
@@ -151,6 +158,7 @@ using handle_command_iterator = std::string_view::const_iterator;
 template <class Grammar, class... ExtCmd>
 void handle_command(std::string_view input, config::config_dynamic_linker* config_linker)
 {
+    VN_PROFILE_SCOPED(HandleConsoleCommand)
     auto start = input.begin();
     auto end = input.end();
     ast::basic_commands<ExtCmd...> commands;
@@ -163,10 +171,12 @@ void handle_command(std::string_view input, config::config_dynamic_linker* confi
     if (!matched)
     {
         std::cerr << "[cmd_handler] Invalid input: " << input << std::endl;
+        spdlog::error("[cmd_handler] Invalid input: {}", input);
         return;
     }
     if (start != end)
     {
+        spdlog::error("[cmd_handler] Invalid input: {}", input);
         std::cerr << "[cmd_handler] Invalid input: " << input << " ! Stopped at " << std::string(start, end) << std::endl;
         return;
     }
