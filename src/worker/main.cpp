@@ -7,6 +7,11 @@
 #include "bilibili_live_config.h"
 #include <iostream>
 
+#ifdef __unix__
+#include <stdio.h>
+#include <unistd.h>
+#endif
+
 vNerve::bilibili::config::config_t global_config;
 
 int main(int argc, char** argv)
@@ -18,10 +23,16 @@ int main(int argc, char** argv)
     spdlog::cfg::load_env_levels();
     global_config = vNerve::bilibili::config::parse_options(argc, argv);
     auto global_ctxt = new vNerve::bilibili::worker_global_context(global_config);
-    //global_ctxt->join();
+#ifdef __unix__
+    if (!isatty(fileno(stdin)))
+    {
+        puts("Using non-tty mode.");
+        global_ctxt->join();
+    }
+    else
+#endif
     while (true)
     {
-        // TODO dynamically change options?
         std::string command;
         std::cin >> command;
         spdlog::set_level(spdlog::level::from_str(command));
