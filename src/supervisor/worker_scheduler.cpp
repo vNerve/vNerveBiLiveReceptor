@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <boost/range/adaptors.hpp>
 #include <spdlog/spdlog.h>
+#include <vector.hpp>
 
 #define LOG_PREFIX "[w_sched] "
 
@@ -193,7 +194,7 @@ int scheduler_session::calculate_max_workers_per_room(Container const& workers_a
     long long sum = 0;
     for (auto const& [_, worker] : workers_available)
         sum += worker.max_rooms;
-    return static_cast<int>(sum / room_count);
+    return static_cast<int>(sum / room_count) + 1;
 }
 
 void scheduler_session::refresh_counts()
@@ -249,6 +250,11 @@ void scheduler_session::send_unassign(identifier_t identifier, room_id_t room_id
     send_to_identifier(identifier, buf, siz, unsigned_char_array_deleter);
 }
 
+bool room_status_less_tasks(room_status* i, room_status* j)
+{
+    return i->current_connections < j->current_connections;
+}
+
 void scheduler_session::check_all_states()
 {
     // Ensure minimum checking interval.
@@ -271,28 +277,8 @@ void scheduler_session::check_all_states()
     tasks_by_room_id_t& tasks_by_rid = _tasks.get<tasks_by_room_id>();
     // tasks_by_identifier_t& tasks_by_wid = _tasks.get<tasks_by_identifier>(); // unused
 
-    VN_PROFILE_BEGIN(RemoveInactiveRoom)
-    // Delete all inactive rooms
-    for (auto it = _rooms.begin(); it != _rooms.end();)
-    {
-        room_status& room = it->second;
-        if (room.active)
-        {
-            ++it;
-            continue;
-        }
-        spdlog::info(LOG_PREFIX "Deleting inactive room {0}", room.room_id);
-        // disconnect all tasks in room
-        auto [begin, end] = tasks_by_rid.equal_range(it->first);
-        for (auto task_iter = begin; task_iter != end;
-             task_iter = delete_task<tasks_by_room_id>(task_iter))
-            send_unassign(task_iter->identifier, task_iter->room_id);
-        it = _rooms.erase(it);
-    }
-    VN_PROFILE_END()
-
     // 先找出所有没有满掉的 worker
-    VN_PROFILE_BEGIN(CollectAvailableWorker)
+    VN_PROFILE_BEGIN(CollectAvailableWorkers)
     auto max_new_per_bunch = _config->worker.max_new_tasks_per_bunch;
     std::vector<worker_status*> workers_available;
     for (auto& [_, worker] : _workers)
@@ -313,20 +299,44 @@ void scheduler_session::check_all_states()
     VN_PROFILE_END()
 
     int max_tasks_per_room = calculate_max_workers_per_room(_workers, _rooms.size());
-    max_tasks_per_room = std::min(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
+    max_tasks_per_room = std::max(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
     SPDLOG_TRACE(LOG_PREFIX "Use max t/rm: {}", max_tasks_per_room);
 
     update_diagnostics(max_tasks_per_room);
 
+    lni::vector<room_status*> room_need_proc; // 需要处理的房间(过多/过少)
+
+    VN_PROFILE_BEGIN(CollectRooms)
+    // Delete all inactive rooms
+    for (auto it = _rooms.begin(); it != _rooms.end();)
+    {
+        room_status& room = it->second;
+        if (room.active)
+        {
+            if (room.current_connections != max_tasks_per_room)
+                room_need_proc.push_back(&room);
+            ++it;
+            continue;
+        }
+        spdlog::info(LOG_PREFIX "Deleting inactive room {0}", room.room_id);
+        // disconnect all tasks in room
+        auto [begin, end] = tasks_by_rid.equal_range(it->first);
+        for (auto task_iter = begin; task_iter != end;
+             task_iter = delete_task<tasks_by_room_id>(task_iter))
+            send_unassign(task_iter->identifier, task_iter->room_id);
+        it = _rooms.erase(it);
+    }
+    std::sort(room_need_proc.begin(), room_need_proc.end(), room_status_less_tasks);
+    VN_PROFILE_END()
+
     VN_PROFILE_BEGIN(AssignTask)
-    for (auto it = _rooms.begin(); it != _rooms.end(); ++it)
+    for (auto it = room_need_proc.begin(); it != room_need_proc.end(); ++it)
     {
         //SPDLOG_TRACE(LOG_PREFIX "Handling room {0}", it->first);
-        room_id_t room_id = it->first;
-        room_status& room = it->second;
+        room_status& room = **it;
+        room_id_t room_id = room.room_id;
 
         auto overkill = room.current_connections - (max_tasks_per_room + 1); // 房间的 worker 太多了
-        auto underkill = max_tasks_per_room - room.current_connections;      // 房间的 worker 不足
         if (overkill > 0)
         {
             // Too much workers on one single room. Unassign some.
@@ -337,24 +347,20 @@ void scheduler_session::check_all_states()
                  i++, task_iter = delete_task<tasks_by_room_id>(task_iter, false))
                 send_unassign(task_iter->identifier, task_iter->room_id);
         }
-        else if (underkill > 0)
+        else if (max_tasks_per_room > room.current_connections) // 房间的 worker 不足
         {
             // Not enough workers on this room.
             //spdlog::debug(LOG_PREFIX "Not enough workers on room {0}({2}). Try to assign {1} rooms.", room_id, underkill, room.current_connections);
-            for (auto iter = workers_available.begin(); iter != workers_available.end();)
+            auto worker_iter = workers_available.begin();
+            if (worker_iter == workers_available.end())
+                continue;
+            auto worker = *worker_iter;
+            if (worker->current_connections > worker->max_rooms || worker->remaining_this_bunch <= 0)
             {
-                auto worker = *iter;
-                if (underkill <= 0)
-                    break;
-                if (worker->current_connections > worker->max_rooms || worker->remaining_this_bunch <= 0)
-                {
-                    iter = workers_available.erase(iter);
-                    continue;
-                }
-                assign_task(worker, &room, current_time);  // Will not actually assign if the task exists, so safe.
-                ++iter;
-                --underkill;
+                workers_available.erase(worker_iter);
+                continue;
             }
+            assign_task(worker, &room, current_time);
         }
 
         //if (room.current_connections < 1)
