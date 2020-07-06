@@ -8,7 +8,7 @@ namespace vNerve::bilibili::worker_supervisor
 {
 using simple_message_header = unsigned long;
 const size_t identifier_size = 8;
-const size_t routing_key_max_size = 24;
+const size_t routing_key_max_size = 32;
 const size_t auth_code_size = 32;
 
 inline const unsigned char worker_ready_code = static_cast<unsigned char>(0x00000001);
@@ -32,7 +32,7 @@ inline const unsigned int worker_data_payload_header_length = 1 + room_id_length
  * OP_CODE=1 ROOM_ID   (ROOM FAILED)
  * OP_CODE=2 MAX_ROOMS AUTHCODE[32] (WORKER READY)
  *
- * byte      uint32  int32 char[24]
+ * byte      uint32  int32 char[32]
  * OP_CODE=0 ROOM_ID CRC32 ROUTING_KEY PAYLOAD
  * CRC32 = 0: Always send.
  *

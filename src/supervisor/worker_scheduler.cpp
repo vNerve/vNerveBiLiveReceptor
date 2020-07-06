@@ -460,7 +460,7 @@ void scheduler_session::handle_buffer(
     }
     else if (op_code == worker_data_code)
     {
-        if (payload_len < worker_data_payload_header_length)  // 1 + 4 + 4 + 24
+        if (payload_len < worker_data_payload_header_length)  // 1 + 4 + 4 + 32
         {
             SPDLOG_TRACE(LOG_PREFIX "Malformed data packet: wrong payload len {}!=33!", payload_len);
             return;
