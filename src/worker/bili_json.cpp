@@ -51,7 +51,7 @@ const size_t JSON_BUFFER_SIZE = 128 * 1024;
 const size_t PARSE_BUFFER_SIZE = 32 * 1024;
 const CRC::Table<uint32_t, 32> crc_lookup_table(CRC::CRC_32());
 
-using command_handler = function<bool(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*)>;
+using command_handler = function<bool(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*)>;
 util::unordered_map_string<command_handler> command;
 
 class parse_context
@@ -118,10 +118,21 @@ public:
 
     const borrowed_bilibili_message* serialize(const long long int popularity, const unsigned int& room_id)
     {
-        // TODO routing_key
         //_borrowed_bilibili_message.routing_key = "";
         _borrowed_bilibili_message.crc32 = 0; // see simple_worker_proto.h
         auto message = _borrowed_bilibili_message._message;
+        auto [_, routing_key_size] = fmt::format_to_n(_borrowed_bilibili_message.routing_key,
+            worker_supervisor::routing_key_max_size,
+            "blv.{}.online", room_id);
+        if (routing_key_size >= worker_supervisor::routing_key_max_size)
+        {
+            spdlog::warn(
+                "[bili_json] Routing key too long:"
+                "blv.{}.online",
+                room_id);
+            routing_key_size = worker_supervisor::routing_key_max_size - 1;
+        }
+        _borrowed_bilibili_message.routing_key[routing_key_size] = '\0';
         message->Clear();
 
         auto popularity_message = message->mutable_popularity_change();
@@ -153,33 +164,39 @@ const borrowed_message* serialize_popularity(const long long popularity, const u
 }
 
 #define CMD(name)                                                                                    \
-    bool cmd_##name(const unsigned int&, const Document&, const borrowed_bilibili_message&, Arena*); \
+    bool cmd_##name(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*);       \
     bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second;                            \
-    bool cmd_##name(const unsigned int& room_id, const Document& document, const borrowed_bilibili_message& message, Arena* arena)
+    bool cmd_##name(const unsigned int& room_id, const Document& document, borrowed_bilibili_message& message, Arena* arena)
 
 #define ASSERT_TRACE(expr)                                                   \
     if (!(expr))                                                             \
     {                                                                        \
-        SPDLOG_TRACE("[bili_json] bilibili json type check failed: " #expr); \
+        spdlog::warn("[bili_json] bilibili json type check failed: " #expr); \
         return false;                                                        \
     }
+#define ROUTING_KEY(fmtstr)                                                  \
+    auto [_, routing_key_size] = fmt::format_to_n(message.routing_key,       \
+        worker_supervisor::routing_key_max_size, fmtstr, room_id);           \
+    if (routing_key_size >= worker_supervisor::routing_key_max_size)         \
+    {                                                                        \
+        spdlog::warn("[bili_json] Routing key too long:" fmtstr, room_id);   \
+        routing_key_size = worker_supervisor::routing_key_max_size - 1;      \
+    }                                                                        \
+    message.routing_key[routing_key_size] = '\0';
 
 
 #define GetMemberCheck(src, name, expr)                                  \
     auto name##_iter = (src).FindMember(#name);                          \
     ASSERT_TRACE(name##_iter != (src).MemberEnd() /* name = src[name] */)\
-    auto const& name = name##_iter->value;                                      \
+    auto const& name = name##_iter->value;                               \
     ASSERT_TRACE(expr)
 
 CMD(DANMU_MSG)
 {
-    // TODO: 需要测试message使用完毕清空时embedded message是否会清空
-
     // 尽管所有UserMessage都需要设置UserInfo
     // 但是不同cmd的数据格式也有所不同
     // 因此设置UserInfo和设置RMQ的topic都只能强耦合在每个处理函数里
-
-    // TODO: 设置routing_key
+    ROUTING_KEY("blv.{}.danmaku")
 
     // 数组数量不对是结构性错误
     // 但b站很有可能在不改变先前字段的情况下添加字段
@@ -350,7 +367,7 @@ CMD(DANMU_MSG)
 
 CMD(SUPER_CHAT_MESSAGE)
 {
-    // TODO: 设置routing_key
+    ROUTING_KEY("blv.{}.sc")
 
     // TODO: 补充SC中的字段
 
@@ -509,7 +526,7 @@ CMD(SUPER_CHAT_MESSAGE)
 
 CMD(SEND_GIFT)
 {
-    // TODO: 设置routing_key
+    ROUTING_KEY("blv.{}.gift")
 
     // 以下变量均为 rapidjson::GenericArray ?
     ASSERT_TRACE(document.HasMember("data"))
