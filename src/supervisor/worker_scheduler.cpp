@@ -462,7 +462,7 @@ void scheduler_session::handle_buffer(
     {
         if (payload_len < worker_data_payload_header_length)  // 1 + 4 + 4 + 32
         {
-            SPDLOG_TRACE(LOG_PREFIX "Malformed data packet: wrong payload len {}!=33!", payload_len);
+            SPDLOG_TRACE(LOG_PREFIX "Malformed data packet: wrong payload len {}!=41!", payload_len);
             return;
         }
 
@@ -490,13 +490,14 @@ void scheduler_session::handle_buffer(
 
         auto routing_key = reinterpret_cast<char*>(payload_data) + 9;
         auto routing_key_len = strnlen(routing_key, routing_key_max_size);
-        spdlog::debug(LOG_PREFIX "[<{0:016x},{1}>] Received data packet. payload_len={2}, CRC32={3}", identifier, room_id, payload_len - 33, crc32);
+        spdlog::debug(LOG_PREFIX "[<{0:016x},{1}>] Received data packet. payload_len={2}, CRC32={3}, rk={4}",
+            identifier, room_id, payload_len - 33, crc32, std::string_view(routing_key, routing_key_len));
 
         _data_handler(
             crc32,
             std::string_view(routing_key, routing_key_len),
-            reinterpret_cast<unsigned char*>(payload_data) + 33,
-            payload_len - 33);
+            reinterpret_cast<unsigned char*>(payload_data) + worker_data_payload_header_length,
+            payload_len - worker_data_payload_header_length);
     }
 }
 
