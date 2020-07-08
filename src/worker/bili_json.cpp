@@ -368,8 +368,8 @@ CMD(DANMU_MSG)
 CMD(SUPER_CHAT_MESSAGE)
 {
     ROUTING_KEY("blv.{}.sc")
-    GetMemberCheck(document, data, document["data"].IsObject())
-    GetMemberCheck(data, user_info, data["user_info"].IsObject())
+    GetMemberCheck(document, data, data.IsObject())
+    GetMemberCheck(data, user_info, user_info.IsObject())
     auto embedded_user_message = message._message->mutable_user_message();
     auto embedded_user_info = embedded_user_message->mutable_user();
     auto embedded_superchat = embedded_user_message->mutable_super_chat();
@@ -429,7 +429,8 @@ CMD(SUPER_CHAT_MESSAGE)
     // 但SC的title默认值是"0"
     // 需要考虑是否进行处理
     GetMemberCheck(user_info, title, title.IsString())
-    if (std::strncmp(title.GetString(), "0", 1) == 0)
+    if (std::strncmp(title.GetString(), "0",
+        std::min(1, static_cast<int>(title.GetStringLength()))) == 0)
         embedded_user_info->set_title("");
     else
         embedded_user_info->set_title(title.GetString(), title.GetStringLength());
