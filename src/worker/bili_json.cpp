@@ -179,7 +179,7 @@ const borrowed_message* serialize_popularity(const long long popularity, const u
         worker_supervisor::routing_key_max_size, fmtstr, room_id);           \
     if (routing_key_size >= worker_supervisor::routing_key_max_size)         \
     {                                                                        \
-        spdlog::warn("[bili_json] Routing key too long:" fmtstr, room_id);   \
+        SPDLOG_WARN("[bili_json] Routing key too long:" fmtstr, room_id);   \
         routing_key_size = worker_supervisor::routing_key_max_size - 1;      \
     }                                                                        \
     message.routing_key[routing_key_size] = '\0';
