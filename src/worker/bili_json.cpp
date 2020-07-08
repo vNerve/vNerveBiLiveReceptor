@@ -17,6 +17,8 @@
 #include <google/protobuf/arena.h>
 #include <spdlog/spdlog.h>
 
+#undef strtoull // fuck protobuf
+#include <cstdlib>
 #include <string>
 #include <string_view>
 #include <functional>
@@ -376,8 +378,9 @@ CMD(SUPER_CHAT_MESSAGE)
 
     // user_info
     // uid
-    GetMemberCheck(data, uid, uid.IsUint64())
-    embedded_user_info->set_uid(uid.GetUint64());
+    GetMemberCheck(data, uid, uid.IsString())
+    auto uid_ull = std::strtoull(uid.GetString(), nullptr, 10);
+    embedded_user_info->set_uid(uid_ull);
     // uname
     GetMemberCheck(user_info, uname, uname.IsString())
     embedded_user_info->set_name(uname.GetString(), uname.GetStringLength());
@@ -485,8 +488,9 @@ CMD(SUPER_CHAT_MESSAGE)
 
     // superchat
     // id
-    GetMemberCheck(data, id, id.IsUint())
-    embedded_superchat->set_id(id.GetUint());
+    GetMemberCheck(data, id, id.IsString())
+    auto id_ull = std::strtoull(id.GetString(), nullptr, 10);
+    embedded_superchat->set_id(id_ull);
     // message
     auto content_iter = data.FindMember("message");
     ASSERT_TRACE(content_iter != data.MemberEnd())
