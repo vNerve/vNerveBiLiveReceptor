@@ -382,8 +382,8 @@ CMD(SUPER_CHAT_MESSAGE)
     GetMemberCheck(user_info, uname, uname.IsString())
     embedded_user_info->set_name(uname.GetString(), uname.GetStringLength());
     // admin
-    GetMemberCheck(user_info, manager, manager.IsBool())
-    embedded_user_info->set_admin(user_info.GetBool());
+    GetMemberCheck(user_info, manager, manager.IsInt())
+    embedded_user_info->set_admin(manager.GetInt() == 1);
 
     // vip&svip->livevip
     GetMemberCheck(user_info, is_vip, is_vip.IsInt())
