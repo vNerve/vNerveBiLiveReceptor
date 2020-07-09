@@ -336,7 +336,7 @@ void scheduler_session::check_all_states()
         room_status& room = **it;
         room_id_t room_id = room.room_id;
 
-        auto overkill = room.current_connections - (max_tasks_per_room + 1); // 房间的 worker 太多了
+        auto overkill = room.current_connections - max_tasks_per_room; // 房间的 worker 太多了
         if (overkill > 0)
         {
             // Too much workers on one single room. Unassign some.
