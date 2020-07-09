@@ -7,6 +7,11 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
 
+#ifdef __unix__
+#include <stdio.h>
+#include <unistd.h>
+#endif
+
 using namespace vNerve::bilibili;
 
 int main(int argc, char** argv)
@@ -21,6 +26,14 @@ int main(int argc, char** argv)
     auto gc = new supervisor_global_context(config, config_linker);
     profiler::setup_profiling(config.get(), gc);
 
+#ifdef __unix__
+    if (!isatty(fileno(stdin)))
+    {
+        puts("Using non-tty mode.");
+        gc->join();
+    }
+    else
+#endif
     try
     {
         while (true)
