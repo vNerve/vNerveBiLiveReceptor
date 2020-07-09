@@ -12,6 +12,8 @@
 #include <rapidjson/allocators.h>
 #include <rapidjson/document.h>
 #include <rapidjson/encodings.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
 #include <rapidjson/error/error.h>
 #include <rapidjson/error/en.h>
 #include <google/protobuf/arena.h>
@@ -22,6 +24,9 @@
 #include <string>
 #include <string_view>
 #include <functional>
+#include <locale>
+#include <iomanip>
+#include <sstream>
 #include "robin_hood_ext.h"
 
 using std::function;
@@ -53,7 +58,8 @@ const size_t JSON_BUFFER_SIZE = 128 * 1024;
 const size_t PARSE_BUFFER_SIZE = 32 * 1024;
 const CRC::Table<uint32_t, 32> crc_lookup_table(CRC::CRC_32());
 
-using command_handler = function<bool(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*)>;
+class parse_context;
+using command_handler = function<bool(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*, parse_context*)>;
 util::unordered_map_string<command_handler> command;
 
 class parse_context
@@ -65,6 +71,7 @@ private:
 
     Arena _arena;
     borrowed_bilibili_message _borrowed_bilibili_message;
+    rapidjson::StringBuffer _temp_string_buffer;
 
 public:
     parse_context()
@@ -111,7 +118,7 @@ public:
             SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: {}", cmd_iter->value.GetString());
             return nullptr;
         }
-        if (cmd_func_iter->second(room_id, document, _borrowed_bilibili_message, &_arena))
+        if (cmd_func_iter->second(room_id, document, _borrowed_bilibili_message, &_arena, this))
             return &_borrowed_bilibili_message;
 
         SPDLOG_TRACE("[bili_json] Failed serializing message.");
@@ -144,6 +151,8 @@ public:
         return &_borrowed_bilibili_message;
     }
     ~parse_context() {}
+
+    rapidjson::StringBuffer& get_temp_string_buffer() { return _temp_string_buffer; }
 };
 
 boost::thread_specific_ptr<parse_context> _parse_context;
@@ -165,15 +174,28 @@ const borrowed_message* serialize_popularity(const long long popularity, const u
     return get_parse_context()->serialize(popularity, room_id);
 }
 
-#define CMD(name)                                                                                    \
-    bool cmd_##name(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*);       \
-    bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second;                            \
-    bool cmd_##name(const unsigned int& room_id, const Document& document, borrowed_bilibili_message& message, Arena* arena)
+std::string_view document_to_string(Document const& document, parse_context* context)
+{
+    auto& buffer = context->get_temp_string_buffer();
+    buffer.Clear();
+    rapidjson::Writer<std::decay<decltype(buffer)>::type> writer(buffer);
+    document.Accept(writer);
+
+    return std::string_view(buffer.GetString(), buffer.GetSize());
+}
+
+#define CMD(name)                                                                   \
+    bool cmd_##name(const unsigned int&, const Document&,                           \
+        borrowed_bilibili_message&, Arena*, parse_context*);                        \
+    bool cmd_##name##_inited = command.emplace(#name, cmd_##name).second;           \
+    bool cmd_##name(const unsigned int& room_id, const Document& document,          \
+        borrowed_bilibili_message& message, Arena* arena, parse_context* context)
 
 #define ASSERT_TRACE(expr)                                                   \
     if (!(expr))                                                             \
     {                                                                        \
-        spdlog::warn("[bili_json] bilibili json type check failed: " #expr); \
+        spdlog::warn("[bili_json] bilibili json type check failed: "         \
+        #expr ": {}", document_to_string(document, context));                \
         return false;                                                        \
     }
 #define ROUTING_KEY(fmtstr)                                                  \
@@ -181,7 +203,7 @@ const borrowed_message* serialize_popularity(const long long popularity, const u
         worker_supervisor::routing_key_max_size, fmtstr, room_id);           \
     if (routing_key_size >= worker_supervisor::routing_key_max_size)         \
     {                                                                        \
-        SPDLOG_WARN("[bili_json] Routing key too long:" fmtstr, room_id);   \
+        SPDLOG_WARN("[bili_json] Routing key too long:" fmtstr, room_id);    \
         routing_key_size = worker_supervisor::routing_key_max_size - 1;      \
     }                                                                        \
     message.routing_key[routing_key_size] = '\0';
@@ -193,24 +215,31 @@ const borrowed_message* serialize_popularity(const long long popularity, const u
     auto const& name = name##_iter->value;                               \
     ASSERT_TRACE(expr)
 
-void set_guard_level(unsigned int level, live::UserInfo* user_info)
+live::GuardLevel convert_guard_level(unsigned int level)
 {
     switch (level)
     {
     case 0:  // 无舰队
-        user_info->set_guard_level(live::GuardLevel::NO_GUARD);
-        break;
+        return live::GuardLevel::NO_GUARD;
     case 1:  // 总督
-        user_info->set_guard_level(live::GuardLevel::LEVEL3);
-        break;
+        return live::GuardLevel::LEVEL3;
     case 2:  // 提督
-        user_info->set_guard_level(live::GuardLevel::LEVEL2);
-        break;
+        return live::GuardLevel::LEVEL2;
     case 3:  // 舰长
-        user_info->set_guard_level(live::GuardLevel::LEVEL1);
+        return live::GuardLevel::LEVEL1;
     default:
         SPDLOG_TRACE("[bili_json] unknown guard level");
+        return live::GuardLevel::NO_GUARD;
     }
+}
+
+live::LiveVipLevel convert_live_vip_level(int vip, int svip)
+{
+    if (svip == 1)
+        return live::LiveVipLevel::YEARLY_VIP;
+    if (vip == 1)
+        return live::LiveVipLevel::MONTHLY_VIP;
+    return live::LiveVipLevel::NO_VIP;
 }
 
 CMD(DANMU_MSG)
@@ -257,25 +286,8 @@ CMD(DANMU_MSG)
     embedded_user_info->set_admin(user_info[2].GetInt() == 1);
     // vip&svip->livevip
     ASSERT_TRACE(user_info[3].IsInt() && user_info[4].IsInt())
-    // 这两个字段分别是月费/年费会员
-    // 都为假时无会员 都为真时报错
-    if (user_info[3].IsInt() == user_info[4].IsInt())
-    {
-        if (user_info[3].GetInt() == 1)
-            // 均为真 报错
-            // 未设置的 protobuf 字段会被置为默认值
-            SPDLOG_TRACE("[bili_json] both vip and svip are true");
-        else  // 均为假 无直播会员
-            embedded_user_info->set_live_vip_level(live::LiveVipLevel::NO_VIP);
-    }
-    else
-    {
-        if (user_info[3].GetInt() == 1)
-            // 月费会员为真 年费会员为假 月费
-            embedded_user_info->set_live_vip_level(live::LiveVipLevel::MONTHLY_VIP);
-        else  // 月费会员为假 年费会员为真 年费
-            embedded_user_info->set_live_vip_level(live::LiveVipLevel::YEARLY_VIP);
-    }
+    embedded_user_info->set_live_vip_level(
+        convert_live_vip_level(user_info[3].GetInt(), user_info[4].GetInt()));
     // regular user
     ASSERT_TRACE(user_info[5].IsNumber())
     if (10000 == user_info[5].GetInt())
@@ -283,7 +295,7 @@ CMD(DANMU_MSG)
     else if (5000 == user_info[5].GetInt())
         embedded_user_info->set_regular_user(false);
     else
-        SPDLOG_TRACE("[bili_json] unknown user rank");
+        SPDLOG_WARN("[bili_json] unknown user rank");
     // phone_verified
     ASSERT_TRACE(user_info[6].IsInt())
     embedded_user_info->set_phone_verified(user_info[6].GetInt() == 1);
@@ -356,13 +368,13 @@ CMD(DANMU_MSG)
         embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
         break;
     default:
-        SPDLOG_TRACE("[bili_json] unknown danmaku lottery type");
+        SPDLOG_WARN("[bili_json] unknown danmaku lottery type");
     }
 
     // guard level
     auto const& guard_level = info[7];
     ASSERT_TRACE(guard_level.IsUint())
-    set_guard_level(guard_level.GetInt(), embedded_user_info);
+    embedded_user_info->set_guard_level(convert_guard_level(guard_level.GetInt()));
 
     return true;
 }
@@ -378,9 +390,8 @@ CMD(SUPER_CHAT_MESSAGE)
 
     // user_info
     // uid
-    GetMemberCheck(data, uid, uid.IsString())
-    auto uid_ull = std::strtoull(uid.GetString(), nullptr, 10);
-    embedded_user_info->set_uid(uid_ull);
+    GetMemberCheck(data, uid, uid.IsInt64())
+    embedded_user_info->set_uid(uid.GetInt64());
     // uname
     GetMemberCheck(user_info, uname, uname.IsString())
     embedded_user_info->set_name(uname.GetString(), uname.GetStringLength());
@@ -391,25 +402,7 @@ CMD(SUPER_CHAT_MESSAGE)
     // vip&svip->livevip
     GetMemberCheck(user_info, is_vip, is_vip.IsInt())
     GetMemberCheck(user_info, is_svip, is_svip.IsInt())
-    // 这两个字段分别是月费/年费会员
-    // 都为假时无会员 都为真时报错
-    if (is_vip.GetInt() == is_svip.GetInt())
-    {
-        if (is_vip.GetInt())
-            // 均为真 报错
-            // 未设置的protobuf字段会被置为默认值
-            SPDLOG_TRACE("[bili_json] both vip and svip are true");
-        else  // 均为假 无直播会员
-            embedded_user_info->set_live_vip_level(live::LiveVipLevel::NO_VIP);
-    }
-    else
-    {
-        if (is_vip.GetInt())
-            // 月费会员为真 年费会员为假 月费
-            embedded_user_info->set_live_vip_level(live::LiveVipLevel::MONTHLY_VIP);
-        else  // 月费会员为假 年费会员为真 年费
-            embedded_user_info->set_live_vip_level(live::LiveVipLevel::YEARLY_VIP);
-    }
+    embedded_user_info->set_live_vip_level(convert_live_vip_level(is_vip.GetInt(), is_svip.GetInt()));
     // regular user
     // phone_verified
     // SC似乎没有这些字段
@@ -421,8 +414,9 @@ CMD(SUPER_CHAT_MESSAGE)
     embedded_user_info->set_user_level(user_level.GetUint());
     // user_level_border_color
     GetMemberCheck(user_info, level_color, level_color.IsString())
-    if (level_color.GetStringLength() == 7)
+    if (level_color.GetStringLength() >= 7)
     {
+        // skip the leading '#'
         auto level_color_ul = std::strtoul(level_color.GetString() + 1, nullptr, 16);
         embedded_user_info->set_user_level_border_color(level_color_ul);
     }
@@ -431,9 +425,9 @@ CMD(SUPER_CHAT_MESSAGE)
     // 值得注意的是 弹幕和礼物的title默认值是空字符串""
     // 但SC的title默认值是"0"
     // 需要考虑是否进行处理
+    using namespace std::literals;
     GetMemberCheck(user_info, title, title.IsString())
-    if (std::strncmp(title.GetString(), "0",
-        std::min(1, static_cast<int>(title.GetStringLength()))) == 0)
+    if (title.GetString() == "0"sv)
         embedded_user_info->set_title("");
     else
         embedded_user_info->set_title(title.GetString(), title.GetStringLength());
@@ -448,7 +442,7 @@ CMD(SUPER_CHAT_MESSAGE)
     // 没有对应的字段
     // guard_level
     GetMemberCheck(user_info, guard_level, guard_level.IsUint())
-    set_guard_level(guard_level.GetUint(), embedded_user_info);
+    embedded_user_info->set_guard_level(convert_guard_level(guard_level.GetInt()));
 
     // medal
     auto medal_info_iter = data.FindMember("medal_info");
@@ -467,8 +461,9 @@ CMD(SUPER_CHAT_MESSAGE)
         embedded_medal_info->set_medal_level(medal_level.GetUint());
         // medal_color
         GetMemberCheck(medal_info, medal_color, medal_color.IsString())
-        if (medal_color.GetStringLength() == 7)
+        if (medal_color.GetStringLength() >= 7)
         {
+            // skip the leading '#'
             auto medal_color_ul = std::strtoul(medal_color.GetString(), nullptr, 16);
             embedded_medal_info->set_medal_color(medal_color_ul);
         }
@@ -538,14 +533,10 @@ CMD(SEND_GIFT)
     GetMemberCheck(data, face, face.IsString())
     embedded_user_info->set_avatar_url(face.GetString(), face.GetStringLength());
 
+    using namespace std::literals;
     // gift
     GetMemberCheck(data, coin_type, coin_type.IsString())
-    if (std::strncmp(
-        "gold", coin_type.GetString(),
-        std::min(4, static_cast<int>(coin_type.GetStringLength()))))
-        embedded_gift->set_is_gold(true);
-    else
-        embedded_gift->set_is_gold(false);
+    embedded_gift->set_is_gold(coin_type.GetString() == "gold"sv);
     GetMemberCheck(data, total_coin, total_coin.IsUint())
     embedded_gift->set_total_coin(total_coin.GetUint());
     GetMemberCheck(data, price, price.IsUint())
@@ -557,6 +548,291 @@ CMD(SEND_GIFT)
     embedded_gift->set_gift_name(giftName.GetString(), giftName.GetStringLength());
     GetMemberCheck(data, num, num.IsUint());
     embedded_gift->set_count(num.GetUint());
+
+    return true;
+}
+
+CMD(USER_TOAST_MSG)
+{
+    ROUTING_KEY("blv.{}.new_guard")
+    GetMemberCheck(document, data, data.IsObject())
+    auto embedded_user_message = message._message->mutable_user_message();
+    auto embedded_user_info = embedded_user_message->mutable_user();
+    auto embedded_new_guard = embedded_user_message->mutable_new_guard();
+
+    GetMemberCheck(data, uid, uid.IsUint64())
+    embedded_user_info->set_uid(uid.GetUint64());
+    GetMemberCheck(data, username, username.IsString())
+    embedded_user_info->set_name(username.GetString(), username.GetStringLength());
+
+    GetMemberCheck(data, guard_level, guard_level.IsInt())
+    auto guard_level_converted = convert_guard_level(guard_level.GetInt());
+    embedded_user_info->set_guard_level(guard_level_converted);
+    embedded_new_guard->set_level(guard_level_converted);
+    embedded_user_info->set_phone_verified(true); // 理由同sc
+    embedded_user_info->set_regular_user(true);
+
+    GetMemberCheck(data, op_type, op_type.IsInt())
+    switch (op_type.GetInt())
+    {
+    case 1:
+        embedded_new_guard->set_buy_type(live::GuardBuyType::BUY);
+        break;
+    case 2:
+        embedded_new_guard->set_buy_type(live::GuardBuyType::RENEW);
+        break;
+    default:
+        SPDLOG_WARN("[bili_json] Unknown guard oper type");
+    }
+
+    using namespace std::literals;
+    GetMemberCheck(data, unit, unit.IsString())
+    // 月
+    if (unit.GetString() == "\xe6\x9c\x88"sv)
+        embedded_new_guard->set_duration_level(live::GuardDurationLevel::MONTHLY_GUARD);
+    // 周
+    else if (unit.GetString() == "\xe5\x91\xa8"sv)
+        embedded_new_guard->set_duration_level(live::GuardDurationLevel::WEEKLY_GUARD);
+    else
+        SPDLOG_WARN("[bili_json] Invalid guard duration {}!",
+            std::string_view(unit.GetString(), unit.GetStringLength()));
+
+    GetMemberCheck(data, num, num.IsInt())
+    embedded_new_guard->set_count(num.GetInt());
+    GetMemberCheck(data, price, price.IsUint());
+    embedded_new_guard->set_total_coin(price.GetUint());
+
+    return true;
+}
+
+CMD(WELCOME)
+{
+    ROUTING_KEY("blv.{}.welcome_vip")
+    GetMemberCheck(document, data, data.IsObject())
+    auto embedded_user_message = message._message->mutable_user_message();
+    auto embedded_user_info = embedded_user_message->mutable_user();
+    auto embedded_welcome_vip = embedded_user_message->mutable_welcome_vip();
+
+    GetMemberCheck(data, uid, uid.IsUint64())
+    embedded_user_info->set_uid(uid.GetUint64());
+    GetMemberCheck(data, uname, uname.IsString())
+    embedded_user_info->set_name(uname.GetString(), uname.GetStringLength());
+    GetMemberCheck(data, is_admin, is_admin.IsBool())
+    embedded_user_info->set_admin(is_admin.GetBool());
+
+    GetMemberCheck(data, vip, vip.IsInt())
+    GetMemberCheck(data, svip, svip.IsInt())
+    embedded_welcome_vip->set_level(
+        convert_live_vip_level(vip.GetInt(), svip.GetInt()));
+
+    return true;
+}
+
+CMD(WELCOME_GUARD)
+{
+    ROUTING_KEY("blv.{}.welcome_guard")
+    GetMemberCheck(document, data, data.IsObject())
+    auto embedded_user_message = message._message->mutable_user_message();
+    auto embedded_user_info = embedded_user_message->mutable_user();
+    auto embedded_welcome_guard = embedded_user_message->mutable_welcome_guard();
+
+    GetMemberCheck(data, uid, uid.IsUint64())
+    embedded_user_info->set_uid(uid.GetUint64());
+    GetMemberCheck(data, username, username.IsString())
+    embedded_user_info->set_name(username.GetString(), username.GetStringLength());
+
+    GetMemberCheck(data, guard_level, guard_level.IsInt())
+    embedded_welcome_guard->set_level(
+            convert_guard_level(guard_level.GetInt()));
+
+    return true;
+}
+
+CMD(ROOM_BLOCK_MSG)
+{
+    ROUTING_KEY("blv.{}.user_blocked")
+    //GetMemberCheck(document, data, data.IsObject())
+    auto embedded_user_message = message._message->mutable_user_message();
+    auto embedded_user_info = embedded_user_message->mutable_user();
+
+    embedded_user_message->mutable_user_blocked();
+
+    auto uid_iter = document.FindMember("uid");
+    ASSERT_TRACE(uid_iter != document.MemberEnd())
+    auto const& uid = uid_iter->value;
+    if (uid.IsString())
+    {
+        auto uid_ull = std::strtoul(uid.GetString(), nullptr, 16);
+        embedded_user_info->set_uid(uid_ull);
+    }
+    else if (uid.IsUint64())
+        embedded_user_info->set_uid(uid.GetUint64());
+    else
+    {
+        SPDLOG_WARN("[bili_json] bad uid type.");
+        return false;
+    }
+
+    GetMemberCheck(document, uname, uname.IsString())
+    embedded_user_info->set_name(uname.GetString(), uname.GetStringLength());
+
+    return true;
+}
+
+CMD(LIVE)
+{
+    ROUTING_KEY("blv.{}.live_status")
+    auto embedded_live_status = message._message->mutable_live_status();
+    embedded_live_status->set_status(live::LiveStatus::LIVE);
+    return true;
+}
+
+CMD(PREPARING)
+{
+    ROUTING_KEY("blv.{}.live_status")
+    auto embedded_live_status = message._message->mutable_live_status();
+    embedded_live_status->set_status(live::LiveStatus::PREPARING);
+    return true;
+}
+
+CMD(ROUND)
+{
+    ROUTING_KEY("blv.{}.live_status")
+    auto embedded_live_status = message._message->mutable_live_status();
+    embedded_live_status->set_status(live::LiveStatus::ROUND);
+    return true;
+}
+
+CMD(CUT_OFF)
+{
+    ROUTING_KEY("blv.{}.live_status")
+    auto embedded_live_status = message._message->mutable_live_status();
+    embedded_live_status->set_status(live::LiveStatus::CUT_OFF);
+
+    auto msg_iter = document.FindMember("msg");
+    if (msg_iter == document.MemberEnd())
+    {
+        auto const& msg = msg_iter->value;
+        embedded_live_status->set_message(msg.GetString(), msg.GetStringLength());
+    }
+    return true;
+}
+
+CMD(ROOM_CHANGE)
+{
+    ROUTING_KEY("blv.{}.room_info")
+    auto embedded_info_change = message._message->mutable_info_change();
+    auto embedded_base_info = embedded_info_change->mutable_base_info();
+    GetMemberCheck(document, data, data.IsObject())
+
+    GetMemberCheck(data, title, title.IsString())
+    embedded_base_info->set_title(title.GetString(), title.GetStringLength());
+
+    GetMemberCheck(data, area_id, area_id.IsUint())
+    embedded_base_info->set_area_id(area_id.GetUint());
+    GetMemberCheck(data, area_name, area_name.IsString());
+    embedded_base_info->set_area_name(area_name.GetString(), area_name.GetStringLength());
+
+    GetMemberCheck(data, parent_area_id, parent_area_id.IsUint())
+    embedded_base_info->set_parent_area_id(parent_area_id.GetUint());
+    GetMemberCheck(data, parent_area_name, parent_area_name.IsString());
+    embedded_base_info->set_parent_area_name(parent_area_name.GetString(), parent_area_name.GetStringLength());
+
+    return true;
+}
+
+CMD(CHANGE_ROOM_INFO)
+{
+    ROUTING_KEY("blv.{}.room_info")
+    auto embedded_info_change = message._message->mutable_info_change();
+
+    GetMemberCheck(document, background, background.IsString())
+    embedded_info_change->set_background_url(background.GetString(), background.GetStringLength());
+    return true;
+}
+
+CMD(ROOM_SKIN_MSG)
+{
+    ROUTING_KEY("blv.{}.room_info")
+    auto embedded_info_change = message._message->mutable_info_change();
+
+    GetMemberCheck(document, skin_id, skin_id.IsUint())
+    embedded_info_change->set_skin_id(skin_id.GetUint());
+    return true;
+}
+
+CMD(ROOM_ADMINS)
+{
+    ROUTING_KEY("blv.{}.room_info")
+    auto embedded_info_change = message._message->mutable_info_change();
+    auto embedded_admin = embedded_info_change->mutable_admin();
+
+    GetMemberCheck(document, uids, uids.IsArray())
+    for (auto const& elem : uids.GetArray())
+    {
+        if (elem.IsUint64())
+            embedded_admin->add_uid(elem.GetUint64());
+    }
+    return true;
+}
+
+CMD(ROOM_LOCK)
+{
+    ROUTING_KEY("blv.{}.room_locked")
+    auto embedded_room_locked = message._message->mutable_room_locked();
+
+    GetMemberCheck(document, expire, expire.IsString())
+    std::tm expire_tm = {};
+    std::istringstream ss(expire.GetString());
+
+    if (ss >> std::get_time(&expire_tm, "%Y-%m-%d %H:%M:%S"))
+    {
+        auto timestamp = std::mktime(&expire_tm);
+        embedded_room_locked->set_locked_until(timestamp);
+    }
+    else
+        SPDLOG_WARN("[bili_json] Invalid expire date string: {}",
+                    std::string_view(expire.GetString(), expire.GetStringLength()));
+    return true;
+}
+
+CMD(WARNING)
+{
+    ROUTING_KEY("blv.{}.room_warning")
+    auto embedded_room_warned = message._message->mutable_room_warning();
+
+    GetMemberCheck(document, msg, msg.IsString())
+    embedded_room_warned->set_message(msg.GetString(), msg.GetStringLength());
+
+    return true;
+}
+
+CMD(ROOM_LIMIT)
+{
+    ROUTING_KEY("blv.{}.room_limited")
+    auto embedded_room_limited = message._message->mutable_room_limited();
+
+    GetMemberCheck(document, type, type.IsString())
+    embedded_room_limited->set_type(type.GetString(), type.GetStringLength());
+    GetMemberCheck(document, delay_range, delay_range.IsUint())
+    embedded_room_limited->set_delay_range(delay_range.GetUint());
+
+    return true;
+}
+
+CMD(SUPER_CHAT_MESSAGE_DELETE)
+{
+    ROUTING_KEY("blv.{}.sc_delete")
+    auto embedded_super_chat_delete = message._message->mutable_superchat_delete();
+
+    GetMemberCheck(document, data, data.IsObject())
+    GetMemberCheck(data, ids, ids.IsArray())
+
+    for (auto const& elem : ids.GetArray())
+    {
+        if (elem.IsUint64())
+            embedded_super_chat_delete->add_id(elem.GetUint64());
+    }
 
     return true;
 }
