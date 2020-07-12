@@ -62,15 +62,7 @@ class parse_context;
 using command_handler = function<bool(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*, parse_context*)>;
 util::unordered_map_string<command_handler> command;
 
-std::string_view document_to_string(Document const& document, parse_context* context)
-{
-    auto& buffer = context->get_temp_string_buffer();
-    buffer.Clear();
-    rapidjson::Writer<std::decay<decltype(buffer)>::type> writer(buffer);
-    document.Accept(writer);
-
-    return std::string_view(buffer.GetString(), buffer.GetSize());
-}
+std::string_view document_to_string(Document const& document, parse_context* context);
 
 class parse_context
 {
@@ -165,7 +157,9 @@ public:
     rapidjson::StringBuffer& get_temp_string_buffer() { return _temp_string_buffer; }
 };
 
+
 boost::thread_specific_ptr<parse_context> _parse_context;
+
 
 parse_context* get_parse_context()
 {
@@ -182,6 +176,16 @@ const borrowed_message* serialize_buffer(char* buf, const size_t& length, const 
 const borrowed_message* serialize_popularity(const long long popularity, const unsigned& room_id)
 {
     return get_parse_context()->serialize(popularity, room_id);
+}
+
+std::string_view document_to_string(Document const& document, parse_context* context)
+{
+    auto& buffer = context->get_temp_string_buffer();
+    buffer.Clear();
+    rapidjson::Writer<std::decay<decltype(buffer)>::type> writer(buffer);
+    document.Accept(writer);
+
+    return std::string_view(buffer.GetString(), buffer.GetSize());
 }
 
 #define CMD(name)                                                                   \
