@@ -24,6 +24,7 @@ private:
 
     int _room_id;
     std::string _token;
+    std::string const* _user_agent = nullptr;
     int _heartbeat_interval_sec;
 
     bool _closed = false;

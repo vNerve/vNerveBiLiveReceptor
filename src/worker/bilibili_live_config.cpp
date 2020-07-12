@@ -57,7 +57,7 @@ std::string path_seg_to_string(UriPathSegmentA* xs, const std::string& delim)
     return ret;
 }
 
-void parse_bilibili_config(std::string const& buf, std::function<void(bilibili_live_config const&)> const& on_success, std::function<void()> const& on_failed)
+void parse_bilibili_config(std::string const& buf, std::function<void(bilibili_live_config const&)> const& on_success, std::function<void()> const& on_failed, std::string const& user_agent)
 {
     using namespace rapidjson;
 
@@ -104,7 +104,7 @@ void parse_bilibili_config(std::string const& buf, std::function<void(bilibili_l
         return on_failed();
     }
 
-    auto server_list_iter = data_iter->value.FindMember("host_server_list");
+    auto server_list_iter = data_iter->value.FindMember("host_list");
     if (server_list_iter == data_iter->value.MemberEnd() || !server_list_iter->value.IsArray())
     {
         spdlog::warn("[bili_token_upd] Invalid Bilibili Live Chat Config Response: Server list doesn't exist or isn't array.");
@@ -137,9 +137,9 @@ void parse_bilibili_config(std::string const& buf, std::function<void(bilibili_l
         auto token = std::string(token_iter->value.GetString(), token_iter->value.GetStringLength());
         auto host = std::string(char_server_host_iter->value.GetString(), char_server_host_iter->value.GetStringLength());
         auto port = char_server_port_iter->value.GetInt();
-        SPDLOG_DEBUG("[bili_token_upd] Received new bilibili live chat config. token={}, host={}, port={}", token, host, port);
+        SPDLOG_DEBUG("[bili_token_upd] Received new bilibili live chat config. token={}, host={}, port={}, ua={}", token, host, port, user_agent);
 
-        on_success(bilibili_live_config{host, port, token});
+        on_success(bilibili_live_config{host, port, token, user_agent});
         return;
     }
     if (!succ)
@@ -157,11 +157,15 @@ void async_fetch_bilibili_live_config(
     std::function<void(bilibili_live_config const&)> on_success,
     std::function<void()> on_failed)
 {
-    auto query_string = fmt::format("?room_id={}&platform=pc&player=web", room_id);
+    auto const& user_agents = (*config)["chat-config-user-agent"].as<std::vector<std::string>>();
+    std::random_device rd;
+    std::mt19937 rand_engine(rd() * room_id);
+    std::uniform_int_distribution<> ua_dist(0, user_agents.size() - 1);
+    auto const& user_agent = user_agents[ua_dist(rand_engine)];
 
     UriUriA uri;
     const char* errorPos;
-    auto& raw_url = (*config)["chat-config-url"].as<std::string>();
+    auto raw_url = fmt::format((*config)["chat-config-url"].as<std::string>(), room_id);
     auto retval = uriParseSingleUriA(&uri, raw_url.c_str(), &errorPos);
     if (retval != URI_SUCCESS)
         return spdlog::error("[live_cfg] Failed to parse chat config url {}!!!!!! urlparser Err:{}", raw_url, retval);
@@ -170,9 +174,9 @@ void async_fetch_bilibili_live_config(
     if (port.empty())
         port = "443";
     auto host = std::string(uri.hostText.first, uri.hostText.afterLast);
-    auto endpoint = path_seg_to_string(uri.pathHead, "/") + query_string;
+    auto endpoint = path_seg_to_string(uri.pathHead, "/") + "?" + std::string(uri.query.first, uri.query.afterLast - uri.query.first);
 
-    resolver.async_resolve(host, port, [=, &context](const error_code& ec, const ip::tcp::resolver::results_type& resolved) -> void {
+    resolver.async_resolve(host, port, [=, &context, &user_agent](const error_code& ec, const ip::tcp::resolver::results_type& resolved) -> void {
         if (ec)
             return on_failed(), spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config. Can't resolve. err: {}:{}", room_id, ec.value(), ec.message());
         std::shared_ptr<ssl_stream<tcp_stream>> stream =
@@ -185,10 +189,10 @@ void async_fetch_bilibili_live_config(
             return spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config when setting up openssl. err: {}:{}", room_id, ec.value(), ec.message());
         }
 
-        async_connect(stream->next_layer().socket(), resolved, [=](const error_code& ec, const ip::tcp::resolver::endpoint_type&) -> void {
+        async_connect(stream->next_layer().socket(), resolved, [=, &user_agent](const error_code& ec, const ip::tcp::resolver::endpoint_type&) -> void {
             if (ec)
                 return on_failed(), spdlog::warn("[live_cfg] Failed connecting to room {}! Failed to fetch chat config can't connect. err: {}:{}", room_id, ec.value(), ec.message());
-            stream->async_handshake(ssl::stream_base::client, [=](const error_code& ec) -> void
+            stream->async_handshake(ssl::stream_base::client, [=, &user_agent](const error_code& ec) -> void
             {
                 if (ec)
                 {
@@ -202,10 +206,10 @@ void async_fetch_bilibili_live_config(
                 request->method(http::verb::get);
                 request->set(http::field::host, host);
                 request->set(http::field::accept, "application/json");
-                request->set(http::field::user_agent, (*config)["chat-config-user-agent"].as<std::string>());
+                request->set(http::field::user_agent, user_agent);
                 request->set(http::field::referer, (*config)["chat-config-referer"].as<std::string>());
 
-                http::async_write(*stream, *request, [=](const error_code& ec, size_t) -> void {
+                http::async_write(*stream, *request, [=, &user_agent](const error_code& ec, size_t) -> void {
                     // ReSharper disable CppExpressionWithoutSideEffects
                     request.get(); // Force capture
                     // ReSharper restore CppExpressionWithoutSideEffects
@@ -217,7 +221,7 @@ void async_fetch_bilibili_live_config(
                     }
                     auto buffer = new flat_buffer();
                     auto res = new http::response<http::string_body>();
-                    http::async_read(*stream, *buffer, *res, [=](const error_code& ec, size_t) -> void
+                    http::async_read(*stream, *buffer, *res, [=, &user_agent](const error_code& ec, size_t) -> void
                     {
                         if (ec)
                         {
@@ -237,7 +241,7 @@ void async_fetch_bilibili_live_config(
                             delete res;
                             return;
                         }
-                        parse_bilibili_config(res->body(), on_success, on_failed);
+                        parse_bilibili_config(res->body(), on_success, on_failed, user_agent);
                         delete buffer;
                         delete res;
                     });

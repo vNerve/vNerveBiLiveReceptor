@@ -14,6 +14,7 @@ namespace config
 {
 using config_t = std::shared_ptr<boost::program_options::variables_map>;
 using config_listener = std::function<void(void*)>;
+inline const std::string config_file_name = "vnerve.conf";
 
 class config_dynamic_linker
 {

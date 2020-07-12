@@ -10,6 +10,7 @@ struct bilibili_live_config
     std::string host;
     int port;
     std::string token;
+    std::string const& user_agent;
 };
 
 void async_fetch_bilibili_live_config(

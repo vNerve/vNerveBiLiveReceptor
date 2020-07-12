@@ -56,6 +56,7 @@ void bilibili_connection_websocket::init()
 
 void bilibili_connection_websocket::on_config_fetched(bilibili_live_config const& config)
 {
+    _user_agent = &config.user_agent;
     _token = config.token;
     spdlog::debug(
         "[session] Connecting room {} with server {}:{}, resolving DN.",
@@ -134,7 +135,7 @@ void bilibili_connection_websocket::on_ssl_handshake(const boost::system::error_
     _ws_stream.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::client));
     _ws_stream.set_option(boost::beast::websocket::stream_base::decorator(
         [this](boost::beast::websocket::request_type& req) {
-            req.set(boost::beast::http::field::user_agent, _session->get_options()["chat-config-user-agent"].as<std::string>());
+            req.set(boost::beast::http::field::user_agent, _user_agent);
             req.set(boost::beast::http::field::accept_language, "zh-CN,zh;q=0.9");
             req.set(boost::beast::http::field::accept_encoding, "gzip, deflate");
             req.set(boost::beast::http::field::pragma, "no-cache");
