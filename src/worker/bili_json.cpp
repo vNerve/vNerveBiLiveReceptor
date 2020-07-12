@@ -62,6 +62,16 @@ class parse_context;
 using command_handler = function<bool(const unsigned int&, const Document&, borrowed_bilibili_message&, Arena*, parse_context*)>;
 util::unordered_map_string<command_handler> command;
 
+std::string_view document_to_string(Document const& document, parse_context* context)
+{
+    auto& buffer = context->get_temp_string_buffer();
+    buffer.Clear();
+    rapidjson::Writer<std::decay<decltype(buffer)>::type> writer(buffer);
+    document.Accept(writer);
+
+    return std::string_view(buffer.GetString(), buffer.GetSize());
+}
+
 class parse_context
 {
 private:
@@ -95,12 +105,13 @@ public:
         rapidjson::ParseResult result = document.ParseInsitu(buf);
         if (result.IsError())
         {
-            spdlog::warn("[bili_json] Bilibili JSON: Failed to parse JSON:{} ({})", rapidjson::GetParseError_En(result.Code()), result.Offset());
+            spdlog::warn("[bili_json] Bilibili JSON: Failed to parse JSON:{} ({}) \n{}",
+                rapidjson::GetParseError_En(result.Code()), result.Offset(), document_to_string(document, this));
             return nullptr;
         }
         if (!document.IsObject())
         {
-            spdlog::warn("[bili_json] Bilibili JSON: Root element is not JSON object.");
+            spdlog::warn("[bili_json] Bilibili JSON: Root element is not JSON object. \n{}", document_to_string(document, this));
             return nullptr;
         }
 
@@ -108,14 +119,13 @@ public:
         auto cmd_iter = document.FindMember("cmd");
         if (cmd_iter == document.MemberEnd() || !cmd_iter->value.IsString())
         {
-            SPDLOG_TRACE("[bili_json] bilibili json cmd type check failed: No cmd provided");
+            spdlog::warn("[bili_json] bilibili json cmd type check failed: No cmd provided. \n{}", document_to_string(document, this));
             return nullptr;
         }
         auto cmd_func_iter = command.find(std::string_view(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength()));
         if (cmd_func_iter == command.end())
         {
-            // 下面的代码会拼接字符串 但当编译选项为release时 日志宏不会启用
-            SPDLOG_TRACE("[bili_json] bilibili json unknown cmd field: {}", cmd_iter->value.GetString());
+            spdlog::warn("[bili_json] bilibili json unknown cmd field: {}", cmd_iter->value.GetString());
             return nullptr;
         }
         if (cmd_func_iter->second(room_id, document, _borrowed_bilibili_message, &_arena, this))
@@ -174,16 +184,6 @@ const borrowed_message* serialize_popularity(const long long popularity, const u
     return get_parse_context()->serialize(popularity, room_id);
 }
 
-std::string_view document_to_string(Document const& document, parse_context* context)
-{
-    auto& buffer = context->get_temp_string_buffer();
-    buffer.Clear();
-    rapidjson::Writer<std::decay<decltype(buffer)>::type> writer(buffer);
-    document.Accept(writer);
-
-    return std::string_view(buffer.GetString(), buffer.GetSize());
-}
-
 #define CMD(name)                                                                   \
     bool cmd_##name(const unsigned int&, const Document&,                           \
         borrowed_bilibili_message&, Arena*, parse_context*);                        \
@@ -228,7 +228,7 @@ live::GuardLevel convert_guard_level(unsigned int level)
     case 3:  // 舰长
         return live::GuardLevel::LEVEL1;
     default:
-        SPDLOG_TRACE("[bili_json] unknown guard level");
+        SPDLOG_WARN("[bili_json] unknown guard level: ", level);
         return live::GuardLevel::NO_GUARD;
     }
 }
@@ -295,7 +295,7 @@ CMD(DANMU_MSG)
     else if (5000 == user_info[5].GetInt())
         embedded_user_info->set_regular_user(false);
     else
-        SPDLOG_WARN("[bili_json] unknown user rank");
+        SPDLOG_WARN("[bili_json] unknown user rank: {}", user_info[5].GetInt());
     // phone_verified
     ASSERT_TRACE(user_info[6].IsInt())
     embedded_user_info->set_phone_verified(user_info[6].GetInt() == 1);
@@ -368,7 +368,7 @@ CMD(DANMU_MSG)
         embedded_danmaku->set_lottery_type(live::LotteryDanmakuType::LOTTERY);
         break;
     default:
-        SPDLOG_WARN("[bili_json] unknown danmaku lottery type");
+        SPDLOG_WARN("[bili_json] unknown danmaku lottery type: {}", danmaku_type.GetUint());
     }
 
     // guard level
@@ -582,7 +582,7 @@ CMD(USER_TOAST_MSG)
         embedded_new_guard->set_buy_type(live::GuardBuyType::RENEW);
         break;
     default:
-        SPDLOG_WARN("[bili_json] Unknown guard oper type");
+        SPDLOG_WARN("[bili_json] Unknown guard oper type: {}", op_type.GetInt());
     }
 
     using namespace std::literals;
