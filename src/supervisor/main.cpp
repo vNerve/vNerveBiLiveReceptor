@@ -6,6 +6,7 @@
 
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 
 #ifdef __unix__
 #include <stdio.h>
@@ -25,6 +26,11 @@ int main(int argc, char** argv)
 
     auto gc = new supervisor_global_context(config, config_linker);
     profiler::setup_profiling(config.get(), gc);
+
+    auto max_size = 1048576 * 16;
+    auto max_files = 32;
+    auto& sinks = spdlog::default_logger()->sinks();
+    sinks.emplace_back(new spdlog::sinks::rotating_file_sink_mt("logs/vNerveBiLiveSupervisor.log", max_size, max_files));
 
 #ifdef __unix__
     if (!isatty(fileno(stdin)))

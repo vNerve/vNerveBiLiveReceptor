@@ -117,7 +117,7 @@ public:
         auto cmd_func_iter = command.find(std::string_view(cmd_iter->value.GetString(), cmd_iter->value.GetStringLength()));
         if (cmd_func_iter == command.end())
         {
-            spdlog::warn("[bili_json] bilibili json unknown cmd field: {}", cmd_iter->value.GetString());
+            spdlog::trace("[bili_json] bilibili json unknown cmd field: {}", cmd_iter->value.GetString());
             return nullptr;
         }
         if (cmd_func_iter->second(room_id, document, _borrowed_bilibili_message, &_arena, this))

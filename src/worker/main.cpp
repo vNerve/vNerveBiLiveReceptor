@@ -28,7 +28,6 @@ int main(int argc, char** argv)
         auto max_size = 1048576 * 16;
         auto max_files = 32;
         auto& sinks = spdlog::default_logger()->sinks();
-        sinks.clear();
         sinks.emplace_back(new spdlog::sinks::rotating_file_sink_mt("logs/vNerveBiLiveWorker.log", max_size, max_files));
     }
 #endif
