@@ -69,7 +69,7 @@ private:
     ///
     /// Assign a task to a worker. 将会更新 room 与 worker 的计数器. \n
     /// Assignment packet will be sent to worker.
-    void assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now);
+    bool assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now);
 
     ///
     /// Calculate the maximum count of workers connecting to one single room.

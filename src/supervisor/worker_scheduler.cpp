@@ -9,6 +9,8 @@
 #include <boost/range/adaptors.hpp>
 #include <spdlog/spdlog.h>
 #include <vector.hpp>
+#include <chrono>
+#include <chrono>
 
 #define LOG_PREFIX "[w_sched] "
 
@@ -174,16 +176,17 @@ void scheduler_session::delete_task(identifier_t identifier, room_id_t room_id, 
     delete_task<tasks_by_identifier_and_room_id>(task_iter, desc_rank);
 }
 
-void scheduler_session::assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now)
+bool scheduler_session::assign_task(worker_status* worker, room_status* room, std::chrono::system_clock::time_point now)
 {
     auto [iter, inserted] = _tasks.emplace(worker->identifier, room->room_id, now);
-    if (!inserted) return;
+    if (!inserted) return false;
     SPDLOG_TRACE(LOG_PREFIX "Trying to assign task <{0:016x},{1}>", worker->identifier, room->room_id);
     send_assign(worker->identifier, room->room_id);
     worker->current_connections++;
     room->current_connections++;
     worker->remaining_this_bunch--;
     spdlog::debug(LOG_PREFIX "[{0:016x}] Assigning task to room {1}. N_wk={2}, N_rm={3}", worker->identifier, room->room_id, worker->current_connections, room->current_connections);
+    return true;
 }
 
 template <class Container>
@@ -300,7 +303,6 @@ void scheduler_session::check_all_states()
 
     int max_tasks_per_room = calculate_max_workers_per_room(_workers, _rooms.size());
     max_tasks_per_room = std::max(1, std::max(max_tasks_per_room, static_cast<int>(_workers.size()))); // 确保一个房间至少有1个task，否则就处于 worker 不足状态了
-    SPDLOG_TRACE(LOG_PREFIX "Use max t/rm: {}", max_tasks_per_room);
 
     update_diagnostics(max_tasks_per_room);
 
@@ -308,13 +310,15 @@ void scheduler_session::check_all_states()
 
     VN_PROFILE_BEGIN(CollectRooms)
     // Delete all inactive rooms
+    int current_min_tasks_per_room = std::numeric_limits<int>::max() / 2; // 用来填平 3 3 3 1 1 1 情况
+    int room_disconnect_throttling = 10; // 用来避免在33333333333333331情况下爆炸
     for (auto it = _rooms.begin(); it != _rooms.end();)
     {
         room_status& room = it->second;
         if (room.active)
         {
-            if (room.current_connections != max_tasks_per_room)
-                room_need_proc.push_back(&room);
+            current_min_tasks_per_room = std::min(current_min_tasks_per_room, room.current_connections);
+            room_need_proc.push_back(&room);
             ++it;
             continue;
         }
@@ -329,6 +333,7 @@ void scheduler_session::check_all_states()
     std::sort(room_need_proc.begin(), room_need_proc.end(), room_status_less_tasks);
     VN_PROFILE_END()
 
+    SPDLOG_DEBUG(LOG_PREFIX "Use max t/rm: {}, current min t/rm:", max_tasks_per_room, current_min_tasks_per_room);
     VN_PROFILE_BEGIN(AssignTask)
     for (auto it = room_need_proc.begin(); it != room_need_proc.end(); ++it)
     {
@@ -336,35 +341,42 @@ void scheduler_session::check_all_states()
         room_status& room = **it;
         room_id_t room_id = room.room_id;
 
-        auto overkill = room.current_connections - max_tasks_per_room; // 房间的 worker 太多了
-        if (overkill > 0)
-        {
-            // Too much workers on one single room. Unassign some.
-            spdlog::debug(LOG_PREFIX "Too much workers on room {0}({2}). Try to unassign {1} rooms.", room_id, overkill, room.current_connections);
-            auto [begin, end] = tasks_by_rid.equal_range(room_id);
-            auto task_iter = begin;
-            for (int i = 0; i < overkill && task_iter != end;
-                 i++, task_iter = delete_task<tasks_by_room_id>(task_iter, false))
-                send_unassign(task_iter->identifier, task_iter->room_id);
-        }
-        else if (max_tasks_per_room > room.current_connections) // 房间的 worker 不足
-        {
-            // Not enough workers on this room.
-            //spdlog::debug(LOG_PREFIX "Not enough workers on room {0}({2}). Try to assign {1} rooms.", room_id, underkill, room.current_connections);
+        // Not enough workers on this room.
+        for (
             auto worker_iter = workers_available.begin();
+            max_tasks_per_room > room.current_connections && worker_iter != workers_available.end();
+            ++worker_iter)
+        {
+            while (worker_iter != workers_available.end()
+                   && ((*worker_iter)->current_connections > (*worker_iter)->max_rooms
+                       || (*worker_iter)->remaining_this_bunch <= 0))
+                worker_iter = workers_available.erase(worker_iter);
             if (worker_iter == workers_available.end())
-                continue;
-            auto worker = *worker_iter;
-            if (worker->current_connections > worker->max_rooms || worker->remaining_this_bunch <= 0)
-            {
-                workers_available.erase(worker_iter);
-                continue;
-            }
-            assign_task(worker, &room, current_time);
+                goto next_room;
+            auto assigned = assign_task(*worker_iter, &room, current_time);
+            if (assigned)
+                goto next_room;
         }
 
-        //if (room.current_connections < 1)
-            //spdlog::warn(LOG_PREFIX "Room {0} can't get any worker!", room_id);
+        {
+            auto overkill = room.current_connections - max_tasks_per_room;                             // 房间的 worker 太多了
+            overkill = std::max(overkill, room.current_connections - current_min_tasks_per_room - 1);  // 极差不能大于2
+            if (overkill > 0 && room_disconnect_throttling > 0)
+            {
+                // Too much workers on one single room. Unassign some.
+                spdlog::debug(LOG_PREFIX "Too much workers on room {0}({2}). Try to unassign {1} rooms.", room_id, overkill, room.current_connections);
+                auto [begin, end] = tasks_by_rid.equal_range(room_id);
+                auto task_iter = begin;
+                for (int i = 0; i < overkill && task_iter != end && room_disconnect_throttling > 0;
+                     i++, task_iter = delete_task<tasks_by_room_id>(task_iter, false))
+                {
+                    send_unassign(task_iter->identifier, task_iter->room_id);
+                    room_disconnect_throttling--;
+                }
+            }
+        }
+
+        next_room:;
     }
 
     VN_PROFILE_END()
