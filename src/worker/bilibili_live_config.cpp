@@ -296,5 +296,6 @@ void async_fetch_bilibili_live_config(
     auto endpoint = path_seg_to_string(uri.pathHead, "/") + "?" + std::string(uri.query.first, uri.query.afterLast - uri.query.first);
 
     std::make_shared<bilibili_live_config_fetch_context>(&context, room_id, config, on_success, on_failed, host, endpoint, &user_agent)->init(resolver, port);
+    uriFreeUriMembersA(&uri);
 }
 }
